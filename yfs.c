@@ -1,4 +1,5 @@
 #include <comp421/filesystem.h>
+#include "iolib.c"
 
 //building the list in memory of free disk blocks
 
@@ -9,12 +10,12 @@ Other processes using the file system send requests to the server and receive re
  your file server process implements most of the functionality of the Yalnix file system, 
  managing a cache of inodes and disk blocks and performing all input and output with the disk drive.
 */
-struct msg { //Dummy message structure from the given PDF
-    int data1; 
-    int data2;
-    char data3[16];
-    void *ptr; 
-    };
+// struct msg { //Dummy message structure from the given PDF
+//     int data1; 
+//     int data2;
+//     char data3[16];
+//     void *ptr; 
+//     };
 //assumes the library functions are implemented
 
 /**
