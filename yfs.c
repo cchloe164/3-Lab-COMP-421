@@ -10,11 +10,12 @@ Other processes using the file system send requests to the server and receive re
  managing a cache of inodes and disk blocks and performing all input and output with the disk drive.
 */
 struct msg { //Dummy message structure from the given PDF
-    int data1; 
+    int type; 
     int data2;
     char data3[16];
     void *ptr; 
-    };
+};
+//create more message types
 //assumes the library functions are implemented
 
 /**
@@ -57,10 +58,20 @@ int main(int argc, char** argv) {
             TracePrintf(0, "Server received blocking message! All processes were listening.\n");
             //handle blocked message here
         }
+        
+        //check the type field, then cast 
         //now we have to parse the message and do something with it
 
         //TODO: create a message type, encode the library codes in one of the fields, and call handlers?
+        int type = message.type
+        switch(type) {
+            (OPEN) {
 
+            }
+            (CHDIR) {
+                
+            }
+        }
 
     }
 
@@ -69,4 +80,25 @@ int main(int argc, char** argv) {
 
 void init() {
     //set up the file system? inodes and stuff
+    //set up a hash, queue, dirty inodes thing?
+    //queue of least recently used item for the cache
+
+    //block 1 = fs header (size of inode)
+    //block 0 = boot block
+    //block 2 ... to the end is the freelist
+    //iterate through 
+    //readsector(1) to get the header. then read the rest of the inodes in the first block
+    //need to make a list of free inodes, mark them as free. init that at the start (linked list)
+    //need a list of free blocks using the input numblocks
+    // can read inodes. based on inonde index, figure out block, then do arithmetic to get address of inode
+    // can use index and 
+    //readsector of the inode block unless it's already in cache. read the inode to figure out whether its free
+    //helpers to abstract reading inode and reading a block
+        //check if block is already in cache.
+
+    //readsector reads a block index, copies to a block struct. then read through that block struct to figure out which inodes are fre
+    //and which blocks are free
+    
+    
+
 }
