@@ -2,6 +2,7 @@
 #include <dirent.h>
 
 #define OPEN 0;
+#define CLOSE 1;
 
 struct file *files[MAX_OPEN_FILES]; // index = fd num
 int open_files = 0;
@@ -9,9 +10,10 @@ int open_files = 0;
 struct file {
     int used; // 0 if free, 1 if in use
     int fd_num; // file descriptor number
+    char *pathname;
     void *fptr; // DIR or FILE ptr
     int is_file;
-    void *cur_pos;  // current position inside file
+    int cur_pos;  // current position inside file
     int inode_num;  // inode number of file
 }
 
@@ -28,8 +30,8 @@ void initFileStorage() {
     int fd;
     for (fd = 0; fd < MAX_OPEN_FILES; fd++) {
         struct file *new_file;
-        new_file->used = 0;
         new_file->fd_num = fd;
+        resetFile(new_file);
         files[fd] = new_file;
     }
 }
@@ -50,6 +52,15 @@ int findFreeFile() {
     }
 }
 
+void resetFile(struct file *file) {
+    files->used = 0;
+    files->pathname = "";
+    files->ftpr = 0;
+    files->is_file = -1;
+    files->cur_pos = 0;
+    files->inode_num = -1;
+}
+
 void sendMsg(int type, int data2, char[16] content, void *ptr, int pid) {
     struct msg *container;
     container->type = type;
@@ -62,8 +73,21 @@ void sendMsg(int type, int data2, char[16] content, void *ptr, int pid) {
     } else {
         printf("sendMsg: ERROR.\n");
     }
-} 
+}
 
+/**
+ * This request opens the file named by pathname . If the file exists, this request returns a file de-
+ * scriptor number that can be used for future requests on this opened file; the file descriptor number
+ * assigned for this newly open file must be the lowest available (unused) file descriptor number that
+ * could be assigned for this newly opened file. If the file does not exist, or if any other error occurs, this
+ * request returns ERROR. It is not an error to Open() a directory; the contents of the open directory
+ * (the bytes in the format of a directory) can then be read using Read(), although it is an error to
+ * attempt to Write() to the open directory. If the Open is successful, the current position for Read
+ * or Write operations on this file descriptor begins at position 0.
+ * Within a process, each successful call to Open or Create must return a new, unique file descriptor
+ * number for the open file. Each such instance of a file descriptor open to this file thus has its own,
+ * separate current position within the file.
+*/
 int Open(char *pathname) {
 
     // check if there is space in storage
@@ -79,9 +103,9 @@ int Open(char *pathname) {
         printf("Open: ERROR file does not exist.\n");
         return ERROR;
     }
+    files[fd]->pathname = pathname;
     files[fd]->fptr = (void *)fptr;
     files[fd]->is_file = 1;
-    files[fd]->cur_pos = 0;
     open_files++;
 
     struct msg *container;
@@ -101,9 +125,28 @@ int Open(char *pathname) {
         return ERROR;
     }
 }
-// int Close(int fd) {
-//     return 0;
-// }
+
+/**
+ * This request closes the open file specified by the file descriptor number fd . If fd is not the descriptor
+ * number of a file currently open in this process, this request returns ERROR; otherwise, it returns 0
+*/
+int Close(int fd) {
+    if (files[fd]->used == 0) { // file is not open
+        return ERROR;
+    }
+
+    char *target_file = files[fd]->pathname;
+    // ensure that file is closed for all of its fds
+    int i;
+    for (i = 0; i < MAX_OPEN_FILES; i++) {
+        if (files[i]->pathname == target_file) {    
+            fclose(files[i]->fptr); // close file stream
+            resetFile(files[i]);
+            open_files--;
+        }
+    }
+    return 0;
+}
 
 // int Create(char *pathname) {
 //     return 0;
