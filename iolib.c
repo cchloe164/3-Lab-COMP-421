@@ -181,26 +181,14 @@ int Create(char *pathname) {
     return 0;
 }
 
-int Read(int fd, void *buf, int size) {
-    return 0;
-}
+// int Read(int fd, void *buf, int size) {
+//     return 0;
+// }
 
 // int Write(int fd, void *, int) {
 //     return 0;
 // }
 // int Seek(int, int, int) {
-//     return 0;
-// }
-// int Link(char *, char *) {
-//     return 0;
-// }
-// int Unlink(char *) {
-//     return 0;
-// }
-// int SymLink(char *, char *) {
-//     return 0;
-// }
-// int ReadLink(char *, char *, int) {
 //     return 0;
 // }
 // int MkDir(char *) {
