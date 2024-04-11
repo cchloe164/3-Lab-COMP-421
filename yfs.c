@@ -255,4 +255,4 @@ void addFreeInode(struct inode *node) { //stolen from previous lab
         free_nodes_tail = new;
     }
     free_nodes_size++;
-} 
+}
