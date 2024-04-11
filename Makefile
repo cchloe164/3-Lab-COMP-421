@@ -33,7 +33,8 @@ TEST = test1 test2 test3
 #	include $(TEST) so that all of your user test programs
 #	(defined above) are also made by this Makefile.
 #
-ALL = yfs iolib.a $(TEST)
+# ALL = yfs iolib.a $(TEST)
+ALL = yfs
 
 #
 #	You must modify the YFS_OBJS and YFS_SRCS definitions below.
@@ -41,8 +42,10 @@ ALL = yfs iolib.a $(TEST)
 #	YFS server, and YFS_SRCS should  be a list of the corresponding
 #	source files that make up your serever.
 #
-YFS_OBJS = example1.o example2.o
-YFS_SRCS = example1.c example2.c
+# YFS_OBJS = example1.o example2.o
+# YFS_SRCS = example1.c example2.c
+YFS_OBJS = yfs.o
+YFS_SRCS = yfs.c
 
 #
 #	You must also modify the IOLIB_OBJS and IOLIB_SRCS definitions
@@ -50,8 +53,10 @@ YFS_SRCS = example1.c example2.c
 #	your YFS library, and IOLIB_SRCS should  be a list of the
 #	corresponding source files that make up your library.
 #
-IOLIB_OBJS = example3.o example4.o
-IOLIB_SRCS = example3.c example4.c
+# IOLIB_OBJS = example3.o example4.o
+# IOLIB_SRCS = example3.c example4.c
+IOLIB_OBJS =
+IOLIB_SRCS =
 
 #
 #	You should not have to modify anything else in this Makefile
