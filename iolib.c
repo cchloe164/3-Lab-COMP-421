@@ -61,20 +61,6 @@ void resetFile(struct file *file) {
     files->inode_num = -1;
 }
 
-void sendMsg(int type, int data2, char[16] content, void *ptr, int pid) {
-    struct msg *container;
-    container->type = type;
-    container->data = data2;
-    container->content = content;
-    container->ptr = ptr;
-
-    if (Send((void *)&container, pid) == 0) {
-        printf("sendMsg: message sent.\n");
-    } else {
-        printf("sendMsg: ERROR.\n");
-    }
-}
-
 /**
  * This request opens the file named by pathname . If the file exists, this request returns a file de-
  * scriptor number that can be used for future requests on this opened file; the file descriptor number
@@ -90,40 +76,37 @@ void sendMsg(int type, int data2, char[16] content, void *ptr, int pid) {
 */
 int Open(char *pathname) {
 
+    // build message
+    struct msg *container;
+    container->type = OPEN;
+
     // check if there is space in storage
     int fd = findFreeFile();
     if (fd == -1) {
-        return ERROR;
+        container->content = "ERROR";
+        Send((void *)&container, pid);
+        return -1;
     }
 
     // check if file is valid
     // TODO: implement functionality for directories
     FILE *fptr = fopen(pathname, "r+");
     if (fptr == NULL) {
-        printf("Open: ERROR file does not exist.\n");
-        return ERROR;
+        TracePrintf(1, "Open: ERROR file does not exist.\n");
+        container->content = "ERROR";
+        Send((void *)&container, pid);
+        return -1;
     }
     files[fd]->pathname = pathname;
     files[fd]->fptr = (void *)fptr;
     files[fd]->is_file = 1;
     open_files++;
 
-    struct msg *container;
-    container->type = OPEN;
     container->data = fd;
-    // container->content = content;
-    // container->ptr = ptr;
-    
-    if (Send((void *)&container, pid) == 0)
-    {
-        printf("Open: message sent.\n");
-        return 0;
-    }
-    else
-    {
-        printf("Open: ERROR.\n");
-        return ERROR;
-    }
+
+    Send((void *)&container, pid);
+    TracePrintf(0, "Open: message sent.\n");
+    return 0;
 }
 
 /**
@@ -131,8 +114,15 @@ int Open(char *pathname) {
  * number of a file currently open in this process, this request returns ERROR; otherwise, it returns 0
 */
 int Close(int fd) {
+    // build message
+    struct msg *container;
+    container->type = CLOSE;
+
     if (files[fd]->used == 0) { // file is not open
-        return ERROR;
+        TracePrintf(1, "Close: file is not open.\n");
+        container->content = "ERROR";
+        Send((void *)&container, pid);
+        return -1;
     }
 
     char *target_file = files[fd]->pathname;
@@ -145,12 +135,46 @@ int Close(int fd) {
             open_files--;
         }
     }
+
+    container->data = 0;
+    Send((void *)&container, pid);
     return 0;
 }
 
-// int Create(char *pathname) {
-//     return 0;
-// }
+int Create(char *pathname) {
+    // TODO: check if pathname directories alr exist
+    if (pathname == "." || pathname == "..") {  // TODO: check if name is same as any directory
+        return ERROR;
+    }
+
+    // check if there is space in storage
+    int fd = findFreeFile();
+    if (fd == -1)
+    {
+        container->content = "ERROR";
+        Send((void *)&container, pid);
+        return -1;
+    }
+
+    FILE *new_file;
+    new_file = fopen(pathname, "wb+");
+    if (new_file == NULL) {
+        TracePrintf(1, "Create: unable to open file.\n");
+        container->content = "ERROR";
+        Send((void *)&container, pid);
+        return -1;
+    }
+    files[fd]->pathname = pathname;
+    files[fd]->fptr = (void *)fptr;
+    files[fd]->is_file = 1;
+    open_files++;
+
+    container->data = fd;
+
+    Send((void *)&container, pid);
+    TracePrintf(0, "Open: message sent.\n");
+    return 0;
+}
 
 // int Read(int fd, void *buf, int size) {
 //     return 0;
