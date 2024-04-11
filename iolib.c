@@ -3,6 +3,7 @@
 
 #define OPEN 0;
 #define CLOSE 1;
+#define CREATE 2
 
 struct file *files[MAX_OPEN_FILES]; // index = fd num
 int open_files = 0;
@@ -27,6 +28,7 @@ struct msg {    // 32-byte all-purpose message
 
 /* Set up file storage.*/
 void initFileStorage() {
+    TracePrintf(0, "Initializing file storage!\n");
     int fd;
     for (fd = 0; fd < MAX_OPEN_FILES; fd++) {
         struct file *new_file;
@@ -42,16 +44,19 @@ int findFreeFile() {
         int fd;
         for (fd = 0; fd < MAX_OPEN_FILES; fd++) {
             if (files[fd]->used == 0) {
-                printf("findFreeFile: free spot %d found in file storage.\n", fd);
+                TracePrintf("findFreeFile: free spot %d found in file storage.\n", fd);
                 return fd;
             }
         }
     } else {
-        printf("findFreeFile: ERROR max # open files reached.\n");
+        TracePrintf("findFreeFile: ERROR max # open files reached.\n");
         return -1;
     }
 }
 
+/**
+ * Reset given file descriptor to be free.
+*/
 void resetFile(struct file *file) {
     files->used = 0;
     files->pathname = "";
@@ -62,17 +67,7 @@ void resetFile(struct file *file) {
 }
 
 /**
- * This request opens the file named by pathname . If the file exists, this request returns a file de-
- * scriptor number that can be used for future requests on this opened file; the file descriptor number
- * assigned for this newly open file must be the lowest available (unused) file descriptor number that
- * could be assigned for this newly opened file. If the file does not exist, or if any other error occurs, this
- * request returns ERROR. It is not an error to Open() a directory; the contents of the open directory
- * (the bytes in the format of a directory) can then be read using Read(), although it is an error to
- * attempt to Write() to the open directory. If the Open is successful, the current position for Read
- * or Write operations on this file descriptor begins at position 0.
- * Within a process, each successful call to Open or Create must return a new, unique file descriptor
- * number for the open file. Each such instance of a file descriptor open to this file thus has its own,
- * separate current position within the file.
+ * This request opens the file named by pathname.
 */
 int Open(char *pathname) {
 
@@ -141,10 +136,20 @@ int Close(int fd) {
     return 0;
 }
 
+/**
+ * This request creates and opens the new file named pathname .
+ */
 int Create(char *pathname) {
+    // build message
+    struct msg *container;
+    container->type = CREATE;
+
     // TODO: check if pathname directories alr exist
     if (pathname == "." || pathname == "..") {  // TODO: check if name is same as any directory
-        return ERROR;
+        TracePrintf(1, "Create: filename cannot be the same as a directory.\n");
+        container->content = "ERROR";
+        Send((void *)&container, pid);
+        return -1;
     }
 
     // check if there is space in storage
@@ -176,9 +181,10 @@ int Create(char *pathname) {
     return 0;
 }
 
-// int Read(int fd, void *buf, int size) {
-//     return 0;
-// }
+int Read(int fd, void *buf, int size) {
+    return 0;
+}
+
 // int Write(int fd, void *, int) {
 //     return 0;
 // }
