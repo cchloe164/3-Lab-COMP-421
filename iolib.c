@@ -41,17 +41,23 @@ struct msg {    // 32-byte all-purpose message
     void *ptr;
 };
 
+/**
+ * Returns current pid.
+*/
+int getPid();
+
 /* Set up file storage.*/
 void initFileStorage() {
     TracePrintf(0, "Initializing file storage!\n");
     int fd;
     for (fd = 0; fd < MAX_OPEN_FILES; fd++) {
-        struct file *new_file;
-        new_file->open = 0;
-        file_arr[fd] = new_file;
-        struct fd *new_fd;
-        new_fd->used = 0;
-        fd_arr[fd] = new_fd;
+        struct file new_file;
+        new_file.open = 0;
+        file_arr[fd] = &new_file;
+
+        struct fd new_fd;
+        new_fd.used = 0;
+        fd_arr[fd] = &new_fd;
         // resetFile(new_file);
     }
 }
@@ -74,7 +80,6 @@ int findFreeFD() {
 */
 struct file *getFilePtr(char *pathname) {
     int i;
-    struct msg *container; //RZW: added this  for the later Sends in here. Maybe we dont' need to send a message
     for (i = 0; i < MAX_OPEN_FILES; i++) {
         if (file_arr[i]->pathname == pathname && file_arr[i]->open == 1)
         { // RZW: changed to file_arr from files_arr
@@ -84,11 +89,13 @@ struct file *getFilePtr(char *pathname) {
         }
     }
 
-    FILE *new_fptr = fopen(pathname, "r+");
     if (open_files >= MAX_OPEN_FILES) {
         TracePrintf(1, "getFilePtr: max # of open files reached.\n");
         return NULL;
-    } else if (new_fptr == NULL)
+    }
+    
+    FILE *new_fptr = fopen(pathname, "r+");
+    if (new_fptr == NULL)
     {
         TracePrintf(1, "getFilePtr: file does not exist.\n");
         return NULL;
@@ -96,13 +103,16 @@ struct file *getFilePtr(char *pathname) {
         // find empty slot on file storage
         // already checked earlier, guaranteed to have at least 1 free slot
         for (i = 0; i < MAX_OPEN_FILES; i ++) {
-            if (files_arr[i]->open == 0) {
-                files_arr[i]->pathname = pathname;
-                files_arr[i]->fptr = new_fptr;
+            if (file_arr[i]->open == 0) {
+                file_arr[i]->pathname = pathname;
+                file_arr[i]->fptr = new_fptr;
                 open_files++;
-                return files_arr[i];
+                return file_arr[i];
             }
         }
+
+        TracePrintf(1, "getFilePtr: logic should not reach here.\n");
+        return NULL;
     }
 }
 
@@ -132,16 +142,16 @@ int Open(char *pathname) {
     if (fd == -1) {
         // container->content = "ERROR";
         strcpy(container->content, "ERROR"); //RZW: commented previous line, added this line to fix "incompatible types when assigning to type 'char[16]' from type 'char *'"
-        Send((void *)&container, pid);
+        Send((void *)&container, getPid());
         return -1;
     }
 
     // check if file is valid
     // TODO: implement functionality for directories
     struct file *file = getFilePtr(pathname);
-    if (fptr == NULL) {
+    if (file == NULL) {
         strcpy(container->content, "ERROR"); // RZW: commented previous line, added this line to fix "incompatible types when assigning to type 'char[16]' from type 'char *'"
-        Send((void *)&container, pid);
+        Send((void *)&container, getPid());
         return -1;
     }
 
@@ -151,7 +161,7 @@ int Open(char *pathname) {
     fd_arr[fd]->file = file; 
     
     container->data = fd;
-    Send((void *)&container, pid);
+    Send((void *)&container, getPid());
     TracePrintf(0, "Open: message sent.\n");
     return 0;
 }
@@ -172,8 +182,8 @@ int Close(int fd) {
     struct file *target_file = fd_arr[fd]->file;
     if (target_file->open == 0) { // file is not open
         TracePrintf(1, "Close: file is not open.\n");
-        container->content = "ERROR";
-        Send((void *)&container, pid);
+        strcpy(container->content, "ERROR");
+        Send((void *)&container, getPid());
         return -1;
     } else { // close file
         target_file->open = 0;
@@ -181,7 +191,7 @@ int Close(int fd) {
         open_files--;
 
         container->data = 0;
-        Send((void *)&container, pid);
+        Send((void *)&container, getPid());
         return 0;
     }
 }
@@ -195,10 +205,11 @@ int Create(char *pathname) {
     container->type = CREATE;
 
     // TODO: check if pathname directories alr exist
-    if (pathname == "." || pathname == "..") {  // TODO: check if name is same as any directory
+    if (strcmp(pathname, ".") == 0 || strcmp(pathname, "..") == 0)
+    { // TODO: check if name is same as any directory
         TracePrintf(1, "Create: filename cannot be the same as a directory.\n");
-        container->content = "ERROR";
-        Send((void *)&container, pid);
+        strcpy(container->content, "ERROR");
+        Send((void *)&container, getPid());
         return -1;
     }
 
@@ -206,8 +217,8 @@ int Create(char *pathname) {
     int fd = findFreeFD();
     if (fd == -1)
     {
-        container->content = "ERROR";
-        Send((void *)&container, pid);
+        strcpy(container->content, "ERROR");
+        Send((void *)&container, getPid());
         return -1;
     }
 
@@ -215,8 +226,8 @@ int Create(char *pathname) {
     new_file = getFilePtr(pathname);
     if (new_file == NULL) {
         TracePrintf(1, "Create: unable to open file.\n");
-        container->content = "ERROR";
-        Send((void *)&container, pid);
+        strcpy(container->content, "ERROR");
+        Send((void *)&container, getPid());
         return -1;
     }
     fd_arr[fd]->used = 1;
@@ -226,7 +237,7 @@ int Create(char *pathname) {
 
 
     container->data = fd;
-    Send((void *)&container, pid);
+    Send((void *)&container, getPid());
     TracePrintf(0, "Open: message sent.\n");
     return 0;
 }
@@ -242,9 +253,11 @@ int Create(char *pathname) {
 //     return 0;
 // }
 int MkDir(char *path) { //used to send a dummy message
-    struct *msg container;//TODO: malloc here?
+    struct msg *container;//TODO: malloc here?
     container->type = MKDIR;
-    Send((void *)&container, pid);
+
+    Send((void *)&container, getPid());
+    (void) path;
     return 0;
 }
 // int RmDir(char *) {
