@@ -9,23 +9,30 @@
 #include <comp421/yalnix.h>
 
 
-//Function signatures
+#define OPEN 0
+#define CLOSE 1
+#define CREATE 2
+#define MKDIR 11
+#define NONE -1
+#define BLOCK_FREE 0
+#define BLOCK_USED 1
 
+//Function signatures
+int markUsed(int blocknum);
 void init();
-int readBlock(int block_index, int num_inodes_to_read, void *buf, int start_index);
-int readInode(struct inode *node);
+int readInodeBlock(int block_index, int num_inodes_to_read, void *buf, int start_index);
+int readInode(int inode_num, void *buf);
 void addFreeInode(struct inode *node);
+int readBlock(int block_index, void *buf);
 //building the list in memory of free disk blocks
 
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
 int *freeBlocks;
-int inodes_per_block = BLOCKSIZE / INODESIZE; 
+int inodes_per_block; 
 struct in_str *free_nodes_head;
 struct in_str *free_nodes_tail;
-int free_nodes_size = 0;
-#define BLOCK_FREE 0
-#define BLOCK_USED 1
+int free_nodes_size;
 /**
 Other processes using the file system send requests to the server and receive replies from the server,
  using the message-passing interprocess communication calls provided by the Yalnix kernel.
@@ -60,7 +67,8 @@ Exec(argv[1], argv + 1);
 */
 int main(int argc, char** argv) {
     TracePrintf(0, "Running main in server!\n");
-
+    inodes_per_block = BLOCKSIZE / INODESIZE;
+    free_nodes_size = 0;
     if (Register(FILE_SERVER) != 0) {
         TracePrintf(0, "Error registering main process \n");
     }
@@ -95,11 +103,30 @@ int main(int argc, char** argv) {
 
         //TODO: create a message type, encode the library codes in one of the fields, and call handlers?
         int type = message->type;
-        (void)type;
+        switch(type) {
+            default: {
+                TracePrintf(0, "Received invalid message type\n");
+                break;
+            }
+            case NONE: {
+                TracePrintf(0, "Received NONE message type\n");
+                break;
+            }
+            case MKDIR: {
+                TracePrintf(0, "Received MKDIR message type\n");
+                // mkdirhandler(message);
+
+            }
+        }
 
     }
 
 
+}
+
+void mkdirHandler() {
+    //gotta go down the inodes until you get to the parent directory, then add a new struct directory to the inode and increment size
+    //also update the parent inode size
 }
 
 void init() {
@@ -140,69 +167,91 @@ void init() {
         
         //iterate through each block and parse the inodes
         int block_index = i + 1; //skip the boot block
+        freeBlocks[block_index] = BLOCK_USED; //mark the block as used
+        numFreeBlocks = numFreeBlocks - 1;
 
-        int status = ReadSector(block_index, buf);//read the fs header first
-        if (status == ERROR) {
-            TracePrintf(0, "Error reading the sector 1 for fs. \n");
-        }
+        // int status = ReadSector(block_index, buf);//read the fs header first
+        // if (status == ERROR) {
+        //     TracePrintf(0, "Error reading the sector 1 for fs. \n");
+        // }
         //we may be at the last block (inodes only cover part of the block. if so, set the num_blocks to read to the remaining)
         num_inodes_to_read = (num_inodes_remaining < inodes_per_block) ? num_inodes_remaining : inodes_per_block; 
         TracePrintf(1, "There are %i nodes to read\n", num_inodes_to_read);
         // int j;
-        if (block_index == 1) { // handle the fs_header 
-            int block_status = readBlock(block_index, num_inodes_to_read, buf, 1); //start reading at the 1st inode index bc it's the first block 
-            if (block_status == BLOCK_FREE) {
-                //the block is free
-                freeBlocks[block_index] = BLOCK_FREE;
+        // if (block_index == 1) { // handle the fs_header 
+        //     // int block_status = readBlock(block_index, num_inodes_to_read, buf, 1); //start reading at the 1st inode index bc it's the first block 
+        //     // if (block_status == BLOCK_FREE) {
+        //     //     //the block is free
+        //     //     freeBlocks[block_index] = BLOCK_FREE;
+        //     // } else {
+        //     //     // update the freeblock list, number of free blocks
+                        // freeBlocks[block_index] = BLOCK_USED;
+                        // numFreeBlocks = numFreeBlocks - 1;
+        //     // }
+        //     continue;
+        // } else 
+        if (block_index >= 1) { //read the inodes and appropriately mark their blocks as used
+            int start_index;
+            int block_status;
+            if (block_index == 1) {
+                block_status = readInodeBlock(block_index, num_inodes_to_read, buf, 1);
+                
+                start_index = 1;
             } else {
-                // update the freeblock list, number of free blocks
-                freeBlocks[block_index] = BLOCK_USED;
-                numFreeBlocks = numFreeBlocks - 1;
+                block_status = readInodeBlock(block_index, num_inodes_to_read, buf, 0);
+                start_index = 0;
             }
-        } else {
-            
-            int block_status = readBlock(block_index, num_inodes_to_read, buf, 0);
-            if (block_status == BLOCK_FREE) {
-                //the block is free
-                freeBlocks[block_index] = BLOCK_FREE;
-            } else {
-                // update the freeblock list, number of free blocks
-                freeBlocks[block_index] = BLOCK_USED;
-                numFreeBlocks = numFreeBlocks - 1;
+            if (block_status == ERROR) {
+                TracePrintf(0, "Error reading inode block. no logic here, so continuing\n");
+            }
+            struct inode *inodes = (struct inode *)buf; // cast buf as an array of inodes
+            int in_idx;
+            for (in_idx = start_index; in_idx < num_inodes_to_read + start_index; in_idx++) {
+                struct inode *node = &inodes[in_idx];
+                if (node->type == INODE_FREE) {
+                    //the inode is free
+                    addFreeInode(node);
+                } else {
+                    //node is not free, so iterate through its directs and mark their blocks as used
+                    int num_blocks = (int) node->size;
+                    int *direct = node->direct;
+                    void *indirect_buf = malloc(SECTORSIZE); //the buffer to read into
+                    if (num_blocks > NUM_DIRECT) { //overflows into the indirect buf
+                        int new_status = ReadSector((int)node->indirect, indirect_buf);//read the indirect buffer
+                        if (new_status == ERROR) {
+                            TracePrintf(0, "Error reading the indirect buffer for the %ith inode in block %i, size %i.\n", in_idx, block_index, num_blocks);
+                        }
+                    }
+                    int j;
+                    for (j = 0; j < num_blocks; j++) {
+                        //iterate through the block nums and mark them as used
+                        if (j < NUM_DIRECT) {
+                            // it is in the direct array
+                            markUsed(direct[j]);
+                        } else {
+                            //we are above the direct num, so go into the indirectory
+                            markUsed(((int *)indirect_buf)[j - NUM_DIRECT]);
+                        }
+                    } 
+                    free(indirect_buf);
+                }
             }
         }
         num_inodes_remaining = num_inodes_remaining - num_inodes_to_read;
+
     }
-
-
-    //block 1 = fs header (size of inode)
-    //block 0 = boot block
-    //block 2 ... to the end is the freelist
-    //iterate through 
-    //readsector(1) to get the header. then read the rest of the inodes in the first block
-    //need to make a list of free inodes, mark them as free. init that at the start (linked list)
-    //need a list of free blocks using the input numblocks
-    // can read inodes. based on inonde index, figure out block, then do arithmetic to get address of inode
-    // can use index and 
-    //readsector of the inode block unless it's already in cache. read the inode to figure out whether its free
-    //helpers to abstract reading inode and reading a block
-        //check if block is already in cache.
-
-    //readsector reads a block index, copies to a block struct. then read through that block struct to figure out which inodes are fre
-    //and which blocks are free
-    
-    
+    free(buf);
 
 }
 
 /**
-reads the block at index block_index, updates the inode free and dirty list, block free list appropriately. 
+reads the block at index block_index,
 Returns BLOCK_FREE if the block is free, else BLOCK_USED
 */
 
-int readBlock(int block_index, int num_inodes_to_read, void *buf, int start_index) {
-    TracePrintf(1, "Reading block %i\n", block_index);
-    int in_idx;
+int readInodeBlock(int block_index, int num_inodes_to_read, void *buf, int start_index) {
+    TracePrintf(1, "Reading inode block %i\n", block_index);
+    // int in_idx;
     
     //TODO check the cache here;
 
@@ -213,28 +262,53 @@ int readBlock(int block_index, int num_inodes_to_read, void *buf, int start_inde
     if (status == ERROR) {
         TracePrintf(0, "Error reading sector %i\n", block_index);
     }
-    struct inode *inodes = (struct inode *)buf; // cast buf as an array of inodes
-    for (in_idx = start_index; in_idx < num_inodes_to_read + start_index; in_idx++) {
-        struct inode *node = &inodes[in_idx];
-        readInode(node);
-    }
-
+    
     return BLOCK_USED;
-
 }
 
 /**
-Reads the inode. 
+reads the block at index block_index,
+Returns BLOCK_FREE if the block is free, else BLOCK_USED
 */
 
-int readInode(struct inode *node) {
-    TracePrintf(1, "Reading inode\n");
-    if (node->type == INODE_FREE) {
-            //the inode is free
-            addFreeInode(node);
+int readBlock(int block_index, void *buf) {
+    TracePrintf(1, "Reading block %i\n", block_index);
+    // int in_idx;
+    
+    //TODO check the cache here;
+
+    int status = ReadSector(block_index, buf);
+    if (status == ERROR) {
+        TracePrintf(0, "Error reading sector %i\n", block_index);
     }
     return 0;
+
 }
+
+
+
+/**
+Reads the inode. writes the inode to the buffer
+*/
+int readInode(int inode_num, void *buf) {
+    TracePrintf(1, "Reading inode %i\n", inode_num);
+    void *buffer = malloc(SECTORSIZE); //the buffer to read into
+    int block_num = inode_num / (inodes_per_block) + 1;
+    int status = ReadSector(block_num, buffer);
+    if (status == ERROR) {
+        // handle ReadSector failure
+        free(buffer);
+        return -1;
+    }
+    // struct inode *node = ((struct inode *)buffer)[(inode_num - 1) % inodes_per_block];//this should be the node
+    struct inode *node = (struct inode *)((char *)buffer + ((inode_num - 1) % inodes_per_block) * sizeof(struct inode));
+    memcpy(buf, node, sizeof(struct inode));
+    free(buffer);
+    return 0;
+}
+
+
+//TODO: read, writeblock
 
 void addFreeInode(struct inode *node) { //stolen from previous lab
     
@@ -256,3 +330,12 @@ void addFreeInode(struct inode *node) { //stolen from previous lab
     }
     free_nodes_size++;
 }
+/**
+marks the block at blocknum as used
+*/
+int markUsed(int block_num) {
+
+    freeBlocks[block_num] = BLOCK_USED;
+    return 0;
+}
+

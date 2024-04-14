@@ -47,9 +47,9 @@ struct inode {
     short type;			/* file type (e.g., directory or regular) */
     short nlink;		/* number of hard links to inode */
     int   reuse;		/* inode reuse count */
-    int   size;			/* file size in bytes */
-    int   direct[NUM_DIRECT];	/* block numbers for 1st NUM_DIRECT blocks */
-    int   indirect;		/* block number of indirect block */
+    int   size;			/* file size in bytes */ //tells you how many blocks the inode has (/ blocksize, round up)
+    int   direct[NUM_DIRECT];	/* block numbers for 1st NUM_DIRECT blocks */ //loop through this to find blocks
+    int   indirect;		/* block number of indirect block */ //block that contains a reference to a block that has the rest of block numbers in it (figure it out based on size)
 };
 
 /*

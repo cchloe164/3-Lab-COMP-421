@@ -1,9 +1,20 @@
 #include <comp421/iolib.h>
 #include <dirent.h>
+#include <comp421/filesystem.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdbool.h>
+#include <string.h>
+#include <comp421/yalnix.h>
 
-#define OPEN 0;
-#define CLOSE 1;
+#define OPEN 0
+#define CLOSE 1
 #define CREATE 2
+#define MKDIR 11
+#define NONE -1
 
 struct file *file_arr[MAX_OPEN_FILES];
 struct fd *fd_arr[MAX_OPEN_FILES]; // index = fd num
@@ -13,14 +24,14 @@ struct file {
     int open;   // is this file open? 0 if no, and 1 if yes.
     char *pathname;
     FILE *fptr;
-}
+};
 
 struct fd {
     int used; // 0 if free, 1 if in use
     struct file *file;
     int cur_pos;  // current position inside file
     int inode_num;  // inode number of file
-}
+};
 
 // what are all of these parameters used for?
 struct msg {    // 32-byte all-purpose message
@@ -28,7 +39,7 @@ struct msg {    // 32-byte all-purpose message
     int data;
     char content[16];
     void *ptr;
-}
+};
 
 /* Set up file storage.*/
 void initFileStorage() {
@@ -39,7 +50,7 @@ void initFileStorage() {
         new_file->open = 0;
         file_arr[fd] = new_file;
         struct fd *new_fd;
-        fd->used = 0;
+        new_fd->used = 0;
         fd_arr[fd] = new_fd;
         // resetFile(new_file);
     }
@@ -50,13 +61,13 @@ int findFreeFD() {
     if (open_files < MAX_OPEN_FILES) {
         int fd;
         for (fd = 0; fd < MAX_OPEN_FILES; fd++) {
-            if (file_arr[fd]->used == 0) {
-                TracePrintf("findFreeFD: free spot %d found in file storage.\n", fd);
+            if (fd_arr[fd]->used == 0) { //RZW: changed to fd_arr from file_arr
+                TracePrintf(0, "findFreeFD: free spot %d found in file storage.\n", fd);
                 return fd;
             }
         }
     } else {
-        TracePrintf("findFreeFD: ERROR max # open files reached.\n");
+        TracePrintf(0, "findFreeFD: ERROR max # open files reached.\n");
         return -1;
     }
 }
@@ -66,10 +77,12 @@ int findFreeFD() {
 */
 struct file *getFilePtr(char *pathname) {
     int i;
+    struct msg *container; //RZW: added this  for the later Sends in here. Maybe we dont' need to send a message
     for (i = 0; i < MAX_OPEN_FILES; i++) {
-        if (files_arr[i]->pathname == pathname) {
-            TracePrintf(1, "getFilePtr: file is already opened.\n") 
-            return files_arr[fd];
+        if (file_arr[i]->pathname == pathname) {//RZW: changed to file_arr from files_arr
+            TracePrintf(1, "getFilePtr: file is already opened.\n");
+            // return file_arr[fd]; //changed this index from "fd" to "i"
+            return file_arr[i]; 
         }
     }
 
@@ -77,7 +90,8 @@ struct file *getFilePtr(char *pathname) {
     if (new_fptr == NULL)
     {
         TracePrintf(1, "getFilePtr: file does not exist.\n");
-        container->content = "ERROR";
+        // container->content = "ERROR";
+        strcpy(container->content, "ERROR"); //RZW: commented previous line, added this line to fix "incompatible types when assigning to type 'char[16]' from type 'char *'"
         Send((void *)&container, pid);
         return 0;
     } else {
@@ -97,13 +111,13 @@ struct file *getFilePtr(char *pathname) {
 /**
  * Reset given file descriptor to be free.
 */
-void resetFile(struct file *file) {
-    file_arr->used = 0;
-    file_arr->pathname = "";
-    file_arr->ftpr = 0;
-    file_arr->is_file = -1;
-    file_arr->cur_pos = 0;
-    file_arr->inode_num = -1;
+void resetFile(struct fd *file) { //RZW: changed all of these from "file_arr" to "file", changed input type to struct fd
+    file->used = 0;
+    file->pathname = "";
+    file->ftpr = 0;
+    file->is_file = -1;
+    file->cur_pos = 0;
+    file->inode_num = -1;
 }
 
 /**
@@ -118,7 +132,8 @@ int Open(char *pathname) {
     // check if there is space in storage
     int fd = findFreeFD();
     if (fd == -1) {
-        container->content = "ERROR";
+        // container->content = "ERROR";
+        strcpy(container->content, "ERROR"); //RZW: commented previous line, added this line to fix "incompatible types when assigning to type 'char[16]' from type 'char *'"
         Send((void *)&container, pid);
         return -1;
     }
@@ -228,9 +243,12 @@ int Create(char *pathname) {
 // int Seek(int, int, int) {
 //     return 0;
 // }
-// int MkDir(char *) {
-//     return 0;
-// }
+int MkDir(char *path) { //used to send a dummy message
+    struct *msg container;//TODO: malloc here?
+    container->type = MKDIR;
+    Send((void *)&container, pid);
+    return 0;
+}
 // int RmDir(char *) {
 //     return 0;
 // }
