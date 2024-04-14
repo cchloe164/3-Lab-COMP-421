@@ -33,8 +33,8 @@ TEST = testMsg
 #	include $(TEST) so that all of your user test programs
 #	(defined above) are also made by this Makefile.
 #
-# ALL = yfs iolib.a $(TEST)
-ALL = yfs iolib.a
+ALL = yfs iolib.a $(TEST)
+# ALL = yfs iolib.a
 
 #
 #	You must modify the YFS_OBJS and YFS_SRCS definitions below.

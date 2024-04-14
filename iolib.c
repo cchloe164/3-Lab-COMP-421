@@ -46,6 +46,9 @@ struct msg {    // 32-byte all-purpose message
 */
 int getPid();
 
+int getPid() {
+    return 0;
+}
 /* Set up file storage.*/
 void initFileStorage() {
     TracePrintf(0, "Initializing file storage!\n");
@@ -252,6 +255,7 @@ int Create(char *pathname) {
 //     return 0;
 // }
 int MkDir(char *path) { //used to send a dummy message
+    TracePrintf(0, "mkDir: message sending.\n");
     struct msg *container;//TODO: malloc here?
     container->type = MKDIR;
 

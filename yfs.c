@@ -17,6 +17,8 @@
 #define BLOCK_FREE 0
 #define BLOCK_USED 1
 
+int pid;
+int getPid();
 //Function signatures
 int markUsed(int blocknum);
 void init();
@@ -44,7 +46,7 @@ struct msg { //Dummy message structure from the given PDF
     int type; 
     int data2;
     char data3[16];
-    void *ptr; 
+    void *ptr;
 };
 
 struct in_str { //an inode linkedlist class
@@ -69,12 +71,13 @@ int main(int argc, char** argv) {
     TracePrintf(0, "Running main in server!\n");
     inodes_per_block = BLOCKSIZE / INODESIZE;
     free_nodes_size = 0;
-    if (Register(FILE_SERVER) != 0) {
+    int server_id = Register(FILE_SERVER);
+    if (server_id != 0) {
         TracePrintf(0, "Error registering main process \n");
     }
     init(); //must format the file system on the disk before running the server
     if (argc > 1) {
-        int pid = Fork();
+        pid = Fork();
         if (pid == 0) {
             Exec(argv[1], argv + 1);
         }
@@ -87,7 +90,6 @@ int main(int argc, char** argv) {
         int receive = Receive(buffer);
         struct msg *message = (struct msg *)buffer;
         //handle cases: error, deadlock break
-        TracePrintf(0, "Server received message signal! ID %i\n", receive);
 
         if (receive == ERROR) {
             TracePrintf(0, "Server error message signal!\n");
@@ -96,18 +98,15 @@ int main(int argc, char** argv) {
         else if (receive == 0) {//blocking message
             TracePrintf(0, "Server received blocking message! All processes were listening.\n");
             //handle blocked message here
+            continue;
         }
-        
+        TracePrintf(0, "Server received message signal! ID %i\n", receive);
         //check the type field, then cast 
         //now we have to parse the message and do something with it
 
         //TODO: create a message type, encode the library codes in one of the fields, and call handlers?
         int type = message->type;
         switch(type) {
-            default: {
-                TracePrintf(0, "Received invalid message type\n");
-                break;
-            }
             case NONE: {
                 TracePrintf(0, "Received NONE message type\n");
                 break;
@@ -117,6 +116,10 @@ int main(int argc, char** argv) {
                 // mkdirhandler(message);
 
             }
+            default: {
+                TracePrintf(0, "Received invalid message type\n");
+                break;
+            }
         }
 
     }
@@ -125,8 +128,12 @@ int main(int argc, char** argv) {
 }
 
 void mkdirHandler() {
-    //gotta go down the inodes until you get to the parent directory, then add a new struct directory to the inode and increment size
+    //gotta go down the inodes from the root until you get to the parent directory, then add a new struct directory to the inode and increment size
     //also update the parent inode size
+}
+
+void createHandler() {
+    //go down the nodes from the root until get to what you're creating, then add to the directory
 }
 
 void init() {
@@ -283,9 +290,9 @@ int readBlock(int block_index, void *buf) {
     }
     return 0;
 
-}
+}   
 
-
+//find free block
 
 /**
 Reads the inode. writes the inode to the buffer
@@ -339,3 +346,6 @@ int markUsed(int block_num) {
     return 0;
 }
 
+int getPid() {
+    return pid;
+}
