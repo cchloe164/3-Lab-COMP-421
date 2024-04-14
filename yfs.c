@@ -6,14 +6,15 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <string.h>
+#include "iolib.c"
 #include <comp421/yalnix.h>
 
 
-#define OPEN 0
-#define CLOSE 1
-#define CREATE 2
-#define MKDIR 11
-#define NONE -1
+// #define OPEN 0
+// #define CLOSE 1
+// #define CREATE 2
+// #define MKDIR 11
+// #define NONE -1
 #define BLOCK_FREE 0
 #define BLOCK_USED 1
 
@@ -35,6 +36,7 @@ int inodes_per_block;
 struct in_str *free_nodes_head;
 struct in_str *free_nodes_tail;
 int free_nodes_size;
+int pid;
 /**
 Other processes using the file system send requests to the server and receive replies from the server,
  using the message-passing interprocess communication calls provided by the Yalnix kernel.
@@ -78,6 +80,7 @@ int main(int argc, char** argv) {
     init(); //must format the file system on the disk before running the server
     if (argc > 1) {
         pid = Fork();
+        pid = Fork();
         if (pid == 0) {
             Exec(argv[1], argv + 1);
         }
@@ -86,6 +89,7 @@ int main(int argc, char** argv) {
     while (1) {
         TracePrintf(0, "Server listening for message \n");
         void *buffer = malloc(sizeof(struct msg));
+        TracePrintf(0, "Size of msg struct %d\n", sizeof(struct msg));
         //Receive client request message, handle the request, reply back to client
         int receive = Receive(buffer);
         struct msg *message = (struct msg *)buffer;
@@ -106,6 +110,8 @@ int main(int argc, char** argv) {
 
         //TODO: create a message type, encode the library codes in one of the fields, and call handlers?
         int type = message->type;
+        TracePrintf(0, "Received message type %d\n", type);
+        TracePrintf(0, "Received message content %s\n", message->content);
         switch(type) {
             case NONE: {
                 TracePrintf(0, "Received NONE message type\n");
@@ -115,6 +121,10 @@ int main(int argc, char** argv) {
                 TracePrintf(0, "Received MKDIR message type\n");
                 // mkdirhandler(message);
 
+            }
+            default: {
+                TracePrintf(0, "Received invalid message type\n");
+                break;
             }
             default: {
                 TracePrintf(0, "Received invalid message type\n");
