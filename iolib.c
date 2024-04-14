@@ -58,7 +58,6 @@ void initFileStorage() {
         struct fd new_fd;
         new_fd.used = 0;
         fd_arr[fd] = &new_fd;
-        // resetFile(new_file);
     }
 }
 
@@ -66,7 +65,7 @@ void initFileStorage() {
 int findFreeFD() {
     int fd;
     for (fd = 0; fd < MAX_OPEN_FILES; fd++) {
-        if (fd_arr[fd]->used == 0) { //RZW: changed to fd_arr from file_arr
+        if (fd_arr[fd]->used == 0) { 
             TracePrintf(0, "findFreeFD: free spot %d found in file storage.\n", fd);
             return fd;
         }
@@ -82,7 +81,7 @@ struct file *getFilePtr(char *pathname) {
     int i;
     for (i = 0; i < MAX_OPEN_FILES; i++) {
         if (file_arr[i]->pathname == pathname && file_arr[i]->open == 1)
-        { // RZW: changed to file_arr from files_arr
+        { 
             TracePrintf(1, "getFilePtr: file is already opened.\n");
             // return file_arr[fd]; //changed this index from "fd" to "i"
             return file_arr[i];
@@ -141,7 +140,7 @@ int Open(char *pathname) {
     int fd = findFreeFD();
     if (fd == -1) {
         // container->content = "ERROR";
-        strcpy(container->content, "ERROR"); //RZW: commented previous line, added this line to fix "incompatible types when assigning to type 'char[16]' from type 'char *'"
+        strcpy(container->content, "ERROR"); 
         Send((void *)&container, getPid());
         return -1;
     }
@@ -150,7 +149,7 @@ int Open(char *pathname) {
     // TODO: implement functionality for directories
     struct file *file = getFilePtr(pathname);
     if (file == NULL) {
-        strcpy(container->content, "ERROR"); // RZW: commented previous line, added this line to fix "incompatible types when assigning to type 'char[16]' from type 'char *'"
+        strcpy(container->content, "ERROR"); 
         Send((void *)&container, getPid());
         return -1;
     }
