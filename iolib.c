@@ -15,6 +15,7 @@
 #define CREATE 2
 #define MKDIR 11
 #define NONE -1
+#define DUMMY 50
 
 struct file *file_arr[MAX_OPEN_FILES];
 struct fd *fd_arr[MAX_OPEN_FILES]; // index = fd num
@@ -47,7 +48,7 @@ struct msg {    // 32-byte all-purpose message
 int getPid();
 
 int getPid() {
-    return 0;
+    return -FILE_SERVER;
 }
 /* Set up file storage.*/
 void initFileStorage() {
@@ -147,7 +148,6 @@ int Open(char *pathname) {
         Send((void *)&container, getPid());
         return -1;
     }
-
     // check if file is valid
     // TODO: implement functionality for directories
     struct file *file = getFilePtr(pathname);
@@ -254,14 +254,16 @@ int Create(char *pathname) {
 // int Seek(int, int, int) {
 //     return 0;
 // }
-int MkDir(char *path) { //used to send a dummy message
-    TracePrintf(0, "mkDir: message sending.\n");
-    struct msg *container;//TODO: malloc here?
-    container->type = MKDIR;
+int Dummy(char *path) { //used to send a dummy message
+    TracePrintf(0, "dummy: message sending.\n");
+    struct msg *container = malloc(sizeof(struct msg));//TODO: malloc here?
+    TracePrintf(0, "testset2\n");
+    container->type = DUMMY;
 
-    TracePrintf(0, "Making directory %s\n", path);
-
-    Send((void *)&container, getPid());
+    // TracePrintf(0, "Making directory %s\n", path);
+    TracePrintf(0, "testset2\n");
+    Send(container, -FILE_SERVER);
+    TracePrintf(0, container->content);
     (void) path;
     return 0;
 }

@@ -10,7 +10,10 @@
 int
 main()
 {
-    MkDir("testing");
-    MkDir("testing");
+    char dirname[30];
+    memset(dirname, 0, 30);
+
+    Dummy("testing");
+    Dummy("testing");
     return 0;
 }

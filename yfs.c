@@ -6,17 +6,18 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <string.h>
-#include "iolib.c"
+// #include "iolib.c"
 #include <comp421/yalnix.h>
 
 
-// #define OPEN 0
-// #define CLOSE 1
-// #define CREATE 2
-// #define MKDIR 11
-// #define NONE -1
+#define OPEN 0
+#define CLOSE 1
+#define CREATE 2
+#define MKDIR 11
+#define NONE -1
 #define BLOCK_FREE 0
 #define BLOCK_USED 1
+#define DUMMY 50
 
 int pid;
 int getPid();
@@ -47,7 +48,7 @@ Other processes using the file system send requests to the server and receive re
 struct msg { //Dummy message structure from the given PDF
     int type; 
     int data2;
-    char data3[16];
+    char content[16];
     void *ptr;
 };
 
@@ -76,64 +77,67 @@ int main(int argc, char** argv) {
     int server_id = Register(FILE_SERVER);
     if (server_id != 0) {
         TracePrintf(0, "Error registering main process \n");
+        return -1;
     }
     init(); //must format the file system on the disk before running the server
     if (argc > 1) {
         pid = Fork();
-        pid = Fork();
         if (pid == 0) {
             Exec(argv[1], argv + 1);
+        } else {
+            // "While 1 loop handling requests"; slide 9
+            while (1) {
+                TracePrintf(0, "Server listening for message \n");
+                void *buffer = malloc(sizeof(struct msg));
+                // TracePrintf(0, "Size of msg struct %d\n", sizeof(struct msg));
+                //Receive client request message, handle the request, reply back to client
+                int receive = Receive(buffer);
+                struct msg *message = (struct msg *)buffer;
+                // struct msg *reply_message = malloc(sizeof(struct msg));
+                //handle cases: error, deadlock break
+
+                if (receive == ERROR) {
+                    TracePrintf(0, "Server error message signal!\n");
+                    continue; //TODO: add error handling
+                }
+                else if (receive == 0) {//blocking message
+                    TracePrintf(0, "Server received blocking message! All processes were listening.\n");
+                    //handle blocked message here
+                    continue;
+                }
+                TracePrintf(0, "Server received message signal! ID %i\n", receive);
+                //check the type field, then cast 
+                //now we have to parse the message and do something with it
+
+                //TODO: create a message type, encode the library codes in one of the fields, and call handlers?
+                int type = message->type;
+                TracePrintf(0, "Received message type %d\n", type);
+                TracePrintf(0, "Received message content %s\n", message->content);
+                switch(type) {
+                    case NONE: {
+                        TracePrintf(0, "Received NONE message type\n");
+                        break;
+                    }
+                    case DUMMY: {
+                        TracePrintf(0, "Received DUMMY message type\n");
+                        // mkdirhandler(message);
+                        strcpy(message->content,"Hello\n"); //testing whether the message is received properly (see iolib handler)
+
+                        Reply(message, receive);
+                        break;
+
+                    }
+                    default: {
+                        TracePrintf(0, "Received invalid message type\n");
+                        break;
+                    }
+                }
+
+            }
         }
     }
-    // "While 1 loop handling requests"; slide 9
-    while (1) {
-        TracePrintf(0, "Server listening for message \n");
-        void *buffer = malloc(sizeof(struct msg));
-        TracePrintf(0, "Size of msg struct %d\n", sizeof(struct msg));
-        //Receive client request message, handle the request, reply back to client
-        int receive = Receive(buffer);
-        struct msg *message = (struct msg *)buffer;
-        //handle cases: error, deadlock break
-
-        if (receive == ERROR) {
-            TracePrintf(0, "Server error message signal!\n");
-            continue; //TODO: add error handling
-        }
-        else if (receive == 0) {//blocking message
-            TracePrintf(0, "Server received blocking message! All processes were listening.\n");
-            //handle blocked message here
-            continue;
-        }
-        TracePrintf(0, "Server received message signal! ID %i\n", receive);
-        //check the type field, then cast 
-        //now we have to parse the message and do something with it
-
-        //TODO: create a message type, encode the library codes in one of the fields, and call handlers?
-        int type = message->type;
-        TracePrintf(0, "Received message type %d\n", type);
-        TracePrintf(0, "Received message content %s\n", message->content);
-        switch(type) {
-            case NONE: {
-                TracePrintf(0, "Received NONE message type\n");
-                break;
-            }
-            case MKDIR: {
-                TracePrintf(0, "Received MKDIR message type\n");
-                // mkdirhandler(message);
-
-            }
-            default: {
-                TracePrintf(0, "Received invalid message type\n");
-                break;
-            }
-            default: {
-                TracePrintf(0, "Received invalid message type\n");
-                break;
-            }
-        }
-
-    }
-
+    
+    return 0;
 
 }
 
@@ -325,7 +329,7 @@ int readInode(int inode_num, void *buf) {
 }
 
 
-//TODO: read, writeblock
+//TODO: writeInode, writeblock, findFreeblock, traverse directory
 
 void addFreeInode(struct inode *node) { //stolen from previous lab
     
