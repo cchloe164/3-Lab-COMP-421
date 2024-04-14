@@ -58,18 +58,15 @@ void initFileStorage() {
 
 /* Return free file descriptor. -1 if storage is full.*/
 int findFreeFD() {
-    if (open_files < MAX_OPEN_FILES) {
-        int fd;
-        for (fd = 0; fd < MAX_OPEN_FILES; fd++) {
-            if (fd_arr[fd]->used == 0) { //RZW: changed to fd_arr from file_arr
-                TracePrintf(0, "findFreeFD: free spot %d found in file storage.\n", fd);
-                return fd;
-            }
+    int fd;
+    for (fd = 0; fd < MAX_OPEN_FILES; fd++) {
+        if (fd_arr[fd]->used == 0) { //RZW: changed to fd_arr from file_arr
+            TracePrintf(0, "findFreeFD: free spot %d found in file storage.\n", fd);
+            return fd;
         }
-    } else {
-        TracePrintf(0, "findFreeFD: ERROR max # open files reached.\n");
-        return -1;
     }
+    TracePrintf(0, "findFreeFD: max # file descriptors reached.\n");
+    return -1;
 }
 
 /**
@@ -79,21 +76,22 @@ struct file *getFilePtr(char *pathname) {
     int i;
     struct msg *container; //RZW: added this  for the later Sends in here. Maybe we dont' need to send a message
     for (i = 0; i < MAX_OPEN_FILES; i++) {
-        if (file_arr[i]->pathname == pathname) {//RZW: changed to file_arr from files_arr
+        if (file_arr[i]->pathname == pathname && file_arr[i]->open == 1)
+        { // RZW: changed to file_arr from files_arr
             TracePrintf(1, "getFilePtr: file is already opened.\n");
             // return file_arr[fd]; //changed this index from "fd" to "i"
-            return file_arr[i]; 
+            return file_arr[i];
         }
     }
 
     FILE *new_fptr = fopen(pathname, "r+");
-    if (new_fptr == NULL)
+    if (open_files >= MAX_OPEN_FILES) {
+        TracePrintf(1, "getFilePtr: max # of open files reached.\n");
+        return NULL;
+    } else if (new_fptr == NULL)
     {
         TracePrintf(1, "getFilePtr: file does not exist.\n");
-        // container->content = "ERROR";
-        strcpy(container->content, "ERROR"); //RZW: commented previous line, added this line to fix "incompatible types when assigning to type 'char[16]' from type 'char *'"
-        Send((void *)&container, pid);
-        return 0;
+        return NULL;
     } else {
         // find empty slot on file storage
         // already checked earlier, guaranteed to have at least 1 free slot
@@ -141,7 +139,9 @@ int Open(char *pathname) {
     // check if file is valid
     // TODO: implement functionality for directories
     struct file *file = getFilePtr(pathname);
-    if (fptr == 0) {
+    if (fptr == NULL) {
+        strcpy(container->content, "ERROR"); // RZW: commented previous line, added this line to fix "incompatible types when assigning to type 'char[16]' from type 'char *'"
+        Send((void *)&container, pid);
         return -1;
     }
 
@@ -165,27 +165,25 @@ int Close(int fd) {
     struct msg *container;
     container->type = CLOSE;
 
-    if (file_arr[fd]->used == 0) { // file is not open
+    // free up fd
+    fd_arr[fd]->used = 0;
+
+    // find target file
+    struct file *target_file = fd_arr[fd]->file;
+    if (target_file->open == 0) { // file is not open
         TracePrintf(1, "Close: file is not open.\n");
         container->content = "ERROR";
         Send((void *)&container, pid);
         return -1;
-    }
+    } else { // close file
+        target_file->open = 0;
+        fclose(target_file->fptr);
+        open_files--;
 
-    char *target_file = file_arr[fd]->pathname;
-    // ensure that file is closed for all of its fds
-    int i;
-    for (i = 0; i < MAX_OPEN_FILES; i++) {
-        if (file_arr[i]->pathname == target_file) {    
-            fclose(file_arr[i]->fptr); // close file stream
-            resetFile(file_arr[i]);
-            open_files--;
-        }
+        container->data = 0;
+        Send((void *)&container, pid);
+        return 0;
     }
-
-    container->data = 0;
-    Send((void *)&container, pid);
-    return 0;
 }
 
 /**
@@ -205,7 +203,7 @@ int Create(char *pathname) {
     }
 
     // check if there is space in storage
-    int fd = findFreeFile();
+    int fd = findFreeFD();
     if (fd == -1)
     {
         container->content = "ERROR";
@@ -213,21 +211,21 @@ int Create(char *pathname) {
         return -1;
     }
 
-    FILE *new_file;
-    new_file = fopen(pathname, "wb+");
+    struct file *new_file;
+    new_file = getFilePtr(pathname);
     if (new_file == NULL) {
         TracePrintf(1, "Create: unable to open file.\n");
         container->content = "ERROR";
         Send((void *)&container, pid);
         return -1;
     }
-    file_arr[fd]->pathname = pathname;
-    file_arr[fd]->fptr = (void *)fptr;
-    file_arr[fd]->is_file = 1;
-    open_files++;
+    fd_arr[fd]->used = 1;
+    fd_arr[fd]->file = new_file;
+    fd_arr[fd]->cur_pos = 0;
+    fd_arr[fd]->inode_num = 0;
+
 
     container->data = fd;
-
     Send((void *)&container, pid);
     TracePrintf(0, "Open: message sent.\n");
     return 0;
