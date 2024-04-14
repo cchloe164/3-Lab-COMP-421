@@ -255,6 +255,8 @@ int MkDir(char *path) { //used to send a dummy message
     struct msg *container;//TODO: malloc here?
     container->type = MKDIR;
 
+    TracePrintf(0, "Making directory %s\n", path);
+
     Send((void *)&container, getPid());
     (void) path;
     return 0;
