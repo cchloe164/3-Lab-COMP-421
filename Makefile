@@ -34,7 +34,7 @@ TEST = test1 test2 test3
 #	(defined above) are also made by this Makefile.
 #
 # ALL = yfs iolib.a $(TEST)
-ALL = yfs
+ALL = yfs iolib.a
 
 #
 #	You must modify the YFS_OBJS and YFS_SRCS definitions below.
@@ -55,8 +55,8 @@ YFS_SRCS = yfs.c
 #
 # IOLIB_OBJS = example3.o example4.o
 # IOLIB_SRCS = example3.c example4.c
-IOLIB_OBJS =
-IOLIB_SRCS =
+IOLIB_OBJS = iolib.o
+IOLIB_SRCS = iolib.c
 
 #
 #	You should not have to modify anything else in this Makefile

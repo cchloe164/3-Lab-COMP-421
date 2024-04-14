@@ -94,17 +94,17 @@ struct file *getFilePtr(char *pathname) {
     }
 }
 
-/**
- * Reset given file descriptor to be free.
-*/
-void resetFile(struct file *file) {
-    file_arr->used = 0;
-    file_arr->pathname = "";
-    file_arr->ftpr = 0;
-    file_arr->is_file = -1;
-    file_arr->cur_pos = 0;
-    file_arr->inode_num = -1;
-}
+// /**
+//  * Reset given file descriptor to be free.
+// */
+// void resetFile(struct file *file) {
+//     file_arr->used = 0;
+//     file_arr->pathname = "";
+//     file_arr->ftpr = 0;
+//     file_arr->is_file = -1;
+//     file_arr->cur_pos = 0;
+//     file_arr->inode_num = -1;
+// }
 
 /**
  * This request opens the file named by pathname.
