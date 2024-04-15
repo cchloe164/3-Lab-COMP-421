@@ -9,7 +9,7 @@
 // #include "iolib.c"
 #include <comp421/yalnix.h>
 
-
+#define min(a, b) ((a) < (b) ? (a) : (b))
 #define OPEN 0
 #define CLOSE 1
 #define CREATE 2
@@ -234,7 +234,7 @@ void init() {
                     addFreeInode(node);
                 } else {
                     //node is not free, so iterate through its directs and mark their blocks as used
-                    int num_blocks = (int) node->size;
+                    int num_blocks = (int) (node->size / BLOCKSIZE) + 1;
                     int *direct = node->direct;
                     void *indirect_buf = malloc(SECTORSIZE); //the buffer to read into
                     if (num_blocks > NUM_DIRECT) { //overflows into the indirect buf
@@ -266,7 +266,7 @@ void init() {
 }
 
 /**
-reads the block at index block_index,
+reads the block at index block_index, which contains a bunch of inodes
 Returns BLOCK_FREE if the block is free, else BLOCK_USED
 */
 
@@ -328,8 +328,154 @@ int readInode(int inode_num, void *buf) {
     return 0;
 }
 
+/**
+Reads the ith direct or indirect block of the inode, returns the block number. returns -1 if error
+*/
 
-//TODO: writeInode, writeblock, findFreeblock, traverse directory
+// int getBlockOfInode(int inode_num, int block_index, void *buf) {
+
+// }
+
+/**
+parses the path, returns the parent inode number if the path is valid or else returns an error 
+*/
+int findParent(char *name) {
+    TracePrintf(1, "in FindParent\n");
+    TracePrintf(0, "finding parent inode in string %s", name);
+
+    //first, parse the name to make sure it is a valid path structure (30 characters or less, with null)
+    char clean[DIRNAMELEN];
+    memset(clean, 0, DIRNAMELEN); //set the clean to 0 for later comparison
+    int i;
+    int null_exists = false;
+    for (i=0; i < DIRNAMELEN; i++) { //iterate through each of the characters in the name, up till 30
+        // clean[i] = name[i]; //copy the char over to the clean string
+        if (name[i] == '\0') {   
+            null_exists = true;
+            break;
+        }
+    }
+    if (null_exists == false) {
+        // There is no null char in the first 30 of the char name. Check 31th at idx 30. If nott null, invalid path.
+        if (name[DIRNAMELEN] != '\0') {
+            return ERROR;
+        }
+    }
+    strcpy(clean, name);
+    //then, parse into separations by slashes, track number of nodes
+    int root = clean[0] == '/'; //is the path from the root
+    struct inode *curr_inode = malloc(sizeof(struct inode)); //stores the current inode
+    int curr_inode_num;
+    if (root) { //if it's the root, set the current inode
+        int read_s = readInode(ROOTINODE, curr_inode);
+        if (read_s == ERROR) {
+            TracePrintf(0, "error reading root inode in path validation\n");
+            return -1;
+        }
+        curr_inode_num = ROOTINODE;
+    } else {
+        TracePrintf(0, "TODO in pathfinder: replace lines here with current directory\n");
+        return -1;
+        // int read_s = readInode(current_directory, curr_inode);
+        // curr_inode_num = current_directory;
+        // if (read_s == ERROR) {
+        //     TracePrintf(0, "error reading relative inode in path validation\n");
+        //     return -1;
+        // }
+    }
+
+    
+    char *tokens[DIRNAMELEN / 2]; //can't have more than DIRNAMELEN / 2 tokens a/a/a/a/a/a/a/
+    int num_tokens = 0;
+    
+    // Split clean by "/" characters
+    char *token = strtok(clean, "/");
+
+    while (token != NULL) {
+        TracePrintf(1, "Token: %s\n", token);
+        tokens[num_tokens++] = token;
+        token = strtok(NULL, "/");
+    }
+
+    //iterate through the strings, traverse down the inodes until you are at the last one
+    if (num_tokens == 1) {
+        //we are already in the parent directory. return the root node or relative root
+        return curr_inode_num;
+    }
+    int traversed = 0; //number of traversed directories
+    //traverse to the second to last one, num_tokens - 1, which should be the parent
+    for (traversed = 0; traversed < num_tokens - 1; traversed++) {
+        char *current_string = tokens[traversed]; //the current directory to go to
+        TracePrintf(1, "Looking for directory %s\n", current_string);
+        if (curr_inode->type != INODE_DIRECTORY) { //the parent is not a directory. should never hit this, in theory
+            TracePrintf(0, "Current parent (node %i) is not a directory, should never hit this though\n", curr_inode_num);
+            return ERROR;
+        }
+        //get the directory entry in this directory
+        //iterate through the blocks of the inode and check if they are a directory. (from 0 to size)
+        //If they are a directory, check if their string is the same as the current string. 
+        int blocks_iterated = 0;
+        void *block = malloc(BLOCKSIZE);
+        void *indirect_block = malloc(BLOCKSIZE);
+        struct dir_entry *current_entry;
+        int dir_found = false;
+        int block_num;
+        int size_traversed = 0; //number of bytes traversed
+        int num_blocks_to_traverse = (curr_inode->size / (BLOCKSIZE * 1.0)) + 1; //number of blocks to traverse
+        while (!dir_found && blocks_iterated < num_blocks_to_traverse) {
+            // go through the block, iterate through the necessary number of directory entries
+            int bytes_to_traverse_in_block = min(BLOCKSIZE, (curr_inode->size) - size_traversed); //this is the number of bytes to read from the current block
+            int entries_to_traverse_in_block = bytes_to_traverse_in_block / sizeof(struct dir_entry); //this is the number of directory entries to check in the current block
+            if (blocks_iterated < NUM_DIRECT) {
+                //we are in the direct set of blocks
+                block_num = curr_inode->direct[blocks_iterated]; // this is the block index to read from
+                
+            } else {
+                //otherwise we are in indirect block. find the block index from the indirect block
+                int read_status = readBlock(curr_inode->indirect, indirect_block);
+                if (read_status == ERROR) {
+                    TracePrintf(0, "Error reading indirect block in path validation\n");
+                    return ERROR;
+                }
+                block_num = ((int *)indirect_block)[blocks_iterated - NUM_DIRECT];
+            }
+            int readStatus = readBlock(block_num, block); //read the block into memory
+            if (readStatus == ERROR) {
+                    TracePrintf(0, "Error reading a subBlock in path validation\n");
+                    return ERROR;
+                }
+            current_entry = (struct dir_entry *)block; // start at the first entry
+            int entries;
+            for (entries = 0; entries < entries_to_traverse_in_block; entries++) {
+                //check all the entries in the block
+                if (strcmp(current_string, current_entry->name) == 0) {
+                    //found the next inode
+                    dir_found = true;
+                    TracePrintf(1, "Found directory %s!\n", current_string);
+                    //check if it is a directory type occurs at the top of the traverse tokens loop
+                    curr_inode_num = current_entry->inum;
+                    readInode(curr_inode_num, curr_inode); //read the new inode into the current inode field
+                    break;
+                }
+                current_entry = (struct dir_entry *)((char *)current_entry + sizeof (struct dir_entry));
+
+            }
+            blocks_iterated++;
+            size_traversed += bytes_to_traverse_in_block;
+        }
+        (void)size_traversed;
+        if (!dir_found) { //didn't find the current subdirectory child in the current directory spot
+            TracePrintf(1, "Couldn't directory %s!\n", current_string);
+            return ERROR;
+        } //otherwise, continue iterating through the path
+
+    }
+    TracePrintf(1, "Complete path found!\n");
+    //TODO: FREE EVERYTHING
+    // free(block);
+    // free(indirect_block);
+    return curr_inode_num;
+}
 
 void addFreeInode(struct inode *node) { //stolen from previous lab
     
