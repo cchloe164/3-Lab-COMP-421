@@ -19,8 +19,6 @@
 #define BLOCK_USED 1
 #define DUMMY 50
 
-int pid;
-int getPid();
 //Function signatures
 int markUsed(int blocknum);
 void init();
@@ -118,6 +116,11 @@ int main(int argc, char** argv) {
                         TracePrintf(0, "Received NONE message type\n");
                         break;
                     }
+                    case OPEN: {
+                        TracePrintf(0, "Received OPEN message type\n");
+                        openHandler();
+                        break;
+                    }
                     case DUMMY: {
                         TracePrintf(0, "Received DUMMY message type\n");
                         // mkdirhandler(message);
@@ -146,12 +149,19 @@ void mkdirHandler() {
     //also update the parent inode size
 }
 
+void openHandler() {
+    // traverse directory
+
+    // find free inode
+    // QUESTION: does this mean it was opened before and alr has an inode? 
+    // do we search thru cache first? how do we retrieve the data that we stored on this file?
+}
+
 void createHandler() {
     //go down the nodes from the root until get to what you're creating, then add to the directory
 }
 
 void init() {
-
     TracePrintf(0, "Initializing the free blocks and inodes\n");
     //TODO: make cache. for hashtable for the cache, steal from 321
     TracePrintf(1, "Reading the fs Header\n");
@@ -358,8 +368,4 @@ int markUsed(int block_num) {
 
     freeBlocks[block_num] = BLOCK_USED;
     return 0;
-}
-
-int getPid() {
-    return pid;
 }

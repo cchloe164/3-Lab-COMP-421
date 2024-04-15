@@ -42,14 +42,6 @@ struct msg {    // 32-byte all-purpose message
     void *ptr;
 };
 
-/**
- * Returns current pid.
-*/
-int getPid();
-
-int getPid() {
-    return -FILE_SERVER;
-}
 /* Set up file storage.*/
 void initFileStorage() {
     TracePrintf(0, "Initializing file storage!\n");
@@ -143,18 +135,13 @@ int Open(char *pathname) {
     // check if there is space in storage
     int fd = findFreeFD();
     if (fd == -1) {
-        // container->content = "ERROR";
-        strcpy(container->content, "ERROR"); 
-        Send((void *)&container, getPid());
-        return -1;
+        return ERROR;
     }
     // check if file is valid
     // TODO: implement functionality for directories
     struct file *file = getFilePtr(pathname);
     if (file == NULL) {
-        strcpy(container->content, "ERROR"); 
-        Send((void *)&container, getPid());
-        return -1;
+        return ERROR;
     }
 
     fd_arr[fd]->used = 1; 
@@ -163,7 +150,7 @@ int Open(char *pathname) {
     fd_arr[fd]->file = file; 
     
     container->data = fd;
-    Send((void *)&container, getPid());
+    Send((void *)&container, -FILE_SERVER);
     TracePrintf(0, "Open: message sent.\n");
     return 0;
 }
@@ -184,16 +171,12 @@ int Close(int fd) {
     struct file *target_file = fd_arr[fd]->file;
     if (target_file->open == 0) { // file is not open
         TracePrintf(1, "Close: file is not open.\n");
-        strcpy(container->content, "ERROR");
-        Send((void *)&container, getPid());
-        return -1;
+        return ERROR;
     } else { // close file
         target_file->open = 0;
         fclose(target_file->fptr);
         open_files--;
 
-        container->data = 0;
-        Send((void *)&container, getPid());
         return 0;
     }
 }
@@ -210,27 +193,21 @@ int Create(char *pathname) {
     if (strcmp(pathname, ".") == 0 || strcmp(pathname, "..") == 0)
     { // TODO: check if name is same as any directory
         TracePrintf(1, "Create: filename cannot be the same as a directory.\n");
-        strcpy(container->content, "ERROR");
-        Send((void *)&container, getPid());
-        return -1;
+        return ERROR;
     }
 
     // check if there is space in storage
     int fd = findFreeFD();
     if (fd == -1)
     {
-        strcpy(container->content, "ERROR");
-        Send((void *)&container, getPid());
-        return -1;
+        return ERROR;
     }
 
     struct file *new_file;
     new_file = getFilePtr(pathname);
     if (new_file == NULL) {
         TracePrintf(1, "Create: unable to open file.\n");
-        strcpy(container->content, "ERROR");
-        Send((void *)&container, getPid());
-        return -1;
+        return ERROR
     }
     fd_arr[fd]->used = 1;
     fd_arr[fd]->file = new_file;
@@ -239,12 +216,13 @@ int Create(char *pathname) {
 
 
     container->data = fd;
-    Send((void *)&container, getPid());
+    Send((void *)&container, -FILE_SERVER);
     TracePrintf(0, "Open: message sent.\n");
     return 0;
 }
 
 // int Read(int fd, void *buf, int size) {
+
 //     return 0;
 // }
 
