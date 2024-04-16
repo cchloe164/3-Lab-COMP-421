@@ -14,5 +14,9 @@ main()
     memset(dirname, 0, 30);
     Dummy("testing");
     MkDir("/testing");
+    MkDir("/testing/test2");
+    MkDir("/testing/test3");
+    MkDir("/testing/test2");
+    
     return 0;
 }
