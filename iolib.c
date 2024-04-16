@@ -21,6 +21,7 @@ struct file *file_arr[MAX_OPEN_FILES];
 struct fd *fd_arr[MAX_OPEN_FILES]; // index = fd num
 int open_files = 0;
 
+int current_directory = ROOTINODE;
 struct file {
     int open;   // is this file open? 0 if no, and 1 if yes.
     char *pathname;
@@ -249,6 +250,23 @@ int Dummy(char *path) { //used to send a dummy message
     Send(container, -FILE_SERVER);
     TracePrintf(0, container->content);
     (void) path;
+    return 0;
+}
+
+int MkDir(char *path) { //used to send a dummy message
+    TracePrintf(0, "MkDir: message sending.\n");
+    struct msg *container = malloc(sizeof(struct msg));//TODO: malloc here?
+    // TracePrintf(0, "testset2\n");
+    container->type = MKDIR;
+    strcpy(container->content, path);
+    // container->content = path;
+    container->data = current_directory; //data is the directory
+
+    // TracePrintf(0, "Making directory %s\n", path);
+    // TracePrintf(0, "testset2\n");
+    Send(container, -FILE_SERVER);
+    TracePrintf(0, container->content);
+    // (void) path;
     return 0;
 }
 // int RmDir(char *) {
