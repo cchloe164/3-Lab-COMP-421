@@ -38,26 +38,26 @@ struct in_str { //an inode linkedlist class
 int pid;
 int getPid();
 //Function signatures
-int sectorBytes(struct inode *node);
-struct inode *findInodePtr(int inode_num);
-int findDirectoryEntry(struct inode *curr_inode, int curr_inode_num, char *name);
-int markUsed(int blocknum);
-void init();
-int readInodeBlock(int block_index, int num_inodes_to_read, void *buf, int start_index);
-int readInode(int inode_num, void *buf);
-void addFreeInode(struct inode *node, int inode_num);
-int findFreeBlock();
-int writeDirectoryToInode(struct inode *node, int curr_inode, int inode_num, char *name);
-int findParent(char *name, int curr_directory);
-int readBlock(int block_index, void *buf);
-int numBlocksUsedBy(struct inode *node);
-int setNewInode(int inode_num, short type, short nlink, int reuse, int size, int parent_inode_num);
-int writeInodeToDisk(int inode_num, struct inode *inode_to_cpy);
+int sectorBytes(struct inode *node); // how many bytes are used in the last used block/sector of the node (use this to calculate how much free space is left in current block, or where free space exists)
+struct inode *findInodePtr(int inode_num); //DEFUNCT; if you need this logic, find it in SETNEWINODE
+int findDirectoryEntry(struct inode *curr_inode, int curr_inode_num, char *name); // Searches for file or directory named "name" in the inode (presumably a directory type)
+int markUsed(int blocknum); //marks a block as used
+void init(); //initializes the fs structure
+int readInodeBlock(int block_index, int num_inodes_to_read, void *buf, int start_index);  //used only for init() to read blocks that contain inodes
+int readInode(int inode_num, void *buf); //Super useful: takes in an inode number and a buffer, reads the contents of the inode into the buffer (please remember to write back to disk)
+int writeInodeToDisk(int inode_num, struct inode *inode_to_cpy); //writes the inode info contained in inode_to_cpy to the inode in disk specified by inode_num
+void addFreeInode(struct inode *node, int inode_num); //used in init to add inodes to the freelist; if you free an inode, add it here
+int findFreeBlock(); //finds a free block
+int writeDirectoryToInode(struct inode *node, int curr_inode, int inode_num, char *name); //writes a dir_entry containing inode_num and name to the inode curr_inode.
+int findParent(char *name, int curr_directory); //finds the parent of the path
+int readBlock(int block_index, void *buf); //reads the block 
+int numBlocksUsedBy(struct inode *node); //calculates the number of blocks used by the inode (based on size)
+int setNewInode(int inode_num, short type, short nlink, int reuse, int size, int parent_inode_num); //creates a new inodes
 //building the list in memory of free disk blocks
-void mkDirHandler(struct msg *message, int senderPid);
-int getLastSector(struct inode *node);
-int getFreeInode();
-char *findLastDirName(char *name);
+void mkDirHandler(struct msg *message, int senderPid); //handles mkdir requests
+int getLastSector(struct inode *node); //gets the last sector used in the inode
+int getFreeInode(); //gets a free inode
+char *findLastDirName(char *name); //finds the last directory name in a path (after the last '/', or the whole string)
 
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
@@ -166,6 +166,45 @@ int main(int argc, char** argv) {
 
 
 /**
+
+*/
+// void createHandler() {
+//     //go down the nodes from the root until get to what you're creating, then add to the directory
+// }
+
+/**
+
+*/
+// void openHandler() {
+//     //go down the nodes from the root until get to what you're opening, then add to the directory
+// }
+
+/**
+This request returns information about the file indicated by pathname in the information structure
+at address statbuf . The information structure is defined within comp421/iolib.h as follows
+The fields in the information structure are copied from the information in the file’s inode. 
+On success, this request returns 0; on any error, the value ERROR is returned.
+*/
+
+// void statHandler(struct msg *message, int senderPid) {
+
+// }
+
+/**
+
+*/
+
+// void chDirHandler(struct msg *message, int senderPid) {
+
+// }
+
+/**
+Write
+go to inode number, go to blocks
+
+*/
+
+/**
 will Reply with messages that contain useful contents for iolib maintenance
 */
 void mkDirHandler(struct msg *message, int senderPid) {
@@ -249,10 +288,6 @@ void mkDirHandler(struct msg *message, int senderPid) {
     TracePrintf(1, "parent is inode number %i with inode type %i and size %i", parent_inode_num, parentInode->type, parentInode->size);
     Reply(message, senderPid);
 
-}
-
-void createHandler() {
-    //go down the nodes from the root until get to what you're creating, then add to the directory
 }
 
 
@@ -367,6 +402,7 @@ void init() {
                             markUsed(direct[j]);
                         } else {
                             //we are above the direct num, so go into the indirectory
+                            //TODO: test this
                             markUsed(((int *)indirect_buf)[j - NUM_DIRECT]);
                         }
                     } 
@@ -424,7 +460,7 @@ int readBlock(int block_index, void *buf) {
 
 
 /**
-finds the last directory name
+finds the last directory name in the string (so if it's "/a/a/b/c", will return "c". or if "asdfasdf", will return "asdfasdf")
 */
 char *findLastDirName(char *str) {
     int len = strlen(str);
@@ -580,7 +616,7 @@ int numBlocksUsedBy(struct inode *node) {
 
 /**
 Searches for the given name in a set of directories in the given inode. 
-Returns NOTFOUND if not found, otherwise returns the inodenum corresponding to the directory entry. 
+Returns ERROR if not found, otherwise returns the inodenum corresponding to the directory entry. 
 Copied from the findParent() function as of 4/16/24 at 15:06pm (so if it's wrong, change both the findParent() and this, or call this in FindParent())
 */
 
@@ -678,7 +714,7 @@ int writeDirectoryToInode(struct inode *node, int curr_inode, int inode_num, cha
         //handle error here
         return -1;
     }
-    void *start = buf;
+    void *start = buf;//need to keep track of the start so I can writesector()
     //int inode num in block = ((i * INODESIZE) + Blocksize - 1) / blocksize;
     //curb = curblock + inodesize * (i % (INODESPERBLOCK))
     buf = buf + bytes_into_sector; 
