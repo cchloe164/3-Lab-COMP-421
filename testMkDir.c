@@ -17,6 +17,7 @@ main()
     MkDir("/testing/test2");
     MkDir("/testing/test3");
     MkDir("/testing/test2");
-    
+    MkDir("/testinga/test2");
+
     return 0;
 }

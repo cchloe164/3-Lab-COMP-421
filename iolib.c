@@ -282,6 +282,7 @@ int MkDir(char *path) { //used to send a dummy message
     // TracePrintf(0, "testset2\n");
     Send(container, -FILE_SERVER);
     TracePrintf(0, container->content);
+    
     // (void) path;
     return 0;
 }
