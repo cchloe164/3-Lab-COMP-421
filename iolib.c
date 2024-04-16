@@ -185,6 +185,7 @@ int Close(int fd) {
  * This request creates and opens the new file named pathname .
  */
 int Create(char *pathname) {
+    TracePrintf(0, "Create function called from iolib!\n");
     // build message
     struct msg *container;
     container->type = CREATE;
@@ -221,10 +222,15 @@ int Create(char *pathname) {
     return 0;
 }
 
-// int Read(int fd, void *buf, int size) {
+int Read(int fd, void *buf, int size) {
+    TracePrintf(0, "Create function called from iolib!\n");
+    struct fd *target_fd = fd_arr[fd];
+    struct file *target_file = target_fd->file;
 
-//     return 0;
-// }
+    fread(target_file)
+
+    return 0;
+}
 
 // int Write(int fd, void *, int) {
 //     return 0;
