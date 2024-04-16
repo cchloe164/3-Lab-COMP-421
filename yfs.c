@@ -10,6 +10,9 @@
 #include <comp421/yalnix.h>
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
+
+#define INODESPERBLOCK BLOCKSIZE / INODESIZE
+
 #define OPEN 0
 #define CLOSE 1
 #define CREATE 2
@@ -19,16 +22,39 @@
 #define BLOCK_USED 1
 #define DUMMY 50
 
+struct msg { //Dummy message structure from the given PDF
+    int type; 
+    int data;
+    char content[16];
+    void *ptr;
+};
+
+struct in_str { //an inode linkedlist class
+    struct inode *node;
+    int inode_num;
+    struct in_str *next;
+    struct in_str *prev;
+};
 int pid;
 int getPid();
 //Function signatures
+int sectorBytes(struct inode *node);
+struct inode *findInodePtr(int inode_num);
 int markUsed(int blocknum);
 void init();
 int readInodeBlock(int block_index, int num_inodes_to_read, void *buf, int start_index);
 int readInode(int inode_num, void *buf);
-void addFreeInode(struct inode *node);
+void addFreeInode(struct inode *node, int inode_num);
+int findFreeBlock();
+int writeDirectoryToInode(struct inode *node, int inode_num, char *name);
+int findParent(char *name, int curr_directory);
 int readBlock(int block_index, void *buf);
+int setNewInode(int inode_num, short type, short nlink, int reuse, int size, int parent_inode_num);
 //building the list in memory of free disk blocks
+void mkDirHandler(struct msg *message, int senderPid);
+int getLastSector(struct inode *node);
+int getFreeInode();
+char *findLastDirName(char *name);
 
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
@@ -45,18 +71,7 @@ Other processes using the file system send requests to the server and receive re
  your file server process implements most of the functionality of the Yalnix file system, 
  managing a cache of inodes and disk blocks and performing all input and output with the disk drive.
 */
-struct msg { //Dummy message structure from the given PDF
-    int type; 
-    int data2;
-    char content[16];
-    void *ptr;
-};
 
-struct in_str { //an inode linkedlist class
-    struct inode *node;
-    struct in_str *next;
-    struct in_str *prev;
-};
 //create more message types
 //assumes the library functions are implemented
 
@@ -118,6 +133,11 @@ int main(int argc, char** argv) {
                         TracePrintf(0, "Received NONE message type\n");
                         break;
                     }
+                    case MKDIR: {
+                        TracePrintf(0, "Received MKDIR message type\n");
+                        mkDirHandler(message, receive);
+                        break;
+                    }
                     case DUMMY: {
                         TracePrintf(0, "Received DUMMY message type\n");
                         // mkdirhandler(message);
@@ -141,13 +161,80 @@ int main(int argc, char** argv) {
 
 }
 
-void mkdirHandler() {
+
+/**
+will Reply with messages that contain useful contents for iolib maintenance
+*/
+void mkDirHandler(struct msg *message, int senderPid) {
     //gotta go down the inodes from the root until you get to the parent directory, then add a new struct directory to the inode and increment size
     //also update the parent inode size
+    char *path = message->content;
+    int curr_directory = message->data;
+    int parent_inode_num = findParent(path, curr_directory);
+    if (parent_inode_num == ERROR) {
+        //handle error here
+        TracePrintf(0, "Error finding parent_inode num in mkdirhandler\n");
+        Reply(message, senderPid);
+    }
+    struct inode *parentInode = malloc(sizeof(struct inode));
+    if (readInode(parent_inode_num, parentInode) == ERROR) {
+        //handler error here
+        TracePrintf(0, "Error reading parent_inode in mkdirhandler\n");
+        Reply(message, senderPid);
+    }
+    TracePrintf(1, "We are here1\n");
+    //next logic: search for the last entry in the dir to see if it exists. if it does, then return error.
+
+    //if the entry doesn't exist, then create the dir_entry
+    //gotta figure out where the sector with space is
+    //read that sector to a buffer
+    //store the buffer's start
+    //move the buffer pointer to the empty spot
+    //set the fields appropriately
+    // int parent_size = parentInode->size;
+    int sector = getLastSector(parentInode);
+    void *buf = malloc(SECTORSIZE);
+    TracePrintf(1, "We are here2\n");
+    if (ReadSector(sector, buf) == ERROR) {
+        //handle error here
+        TracePrintf(0, "Error reading sector in mkdirhandler\n");
+        Reply(message, senderPid);
+    }
+    TracePrintf(1, "We are here3\n");
+    void *start = buf;
+    //int inode num in block = ((i * INODESIZE) + Blocksize - 1) / blocksize;
+    //curb = curblock + inodesize * (i % (INODESPERBLOCK))
+    int bytes_into_sector = sectorBytes(parentInode);
+    // int dirs_into_sector = bytes_into_sector / sizeof(struct dir_entry);
+    buf = buf + bytes_into_sector; 
+    
+    //TODO: need to check if there is space in the current sector before writing to it
+    TracePrintf(1, "We are here4\n");
+    int new_inode_num = getFreeInode();
+    TracePrintf(1, "We are here5\n");
+    setNewInode(new_inode_num, INODE_DIRECTORY, -1, 0, 0, parent_inode_num);
+    TracePrintf(1, "We are here6\n");
+    struct dir_entry *entry = (struct dir_entry *)buf;
+    entry->inum = new_inode_num;
+    strcpy(entry->name, findLastDirName(path));
+    // entry->name = findLastDirName(path);
+    parentInode->size = parentInode->size + sizeof(struct dir_entry);
+    TracePrintf(1, "Writing new directory to sector\n");
+    WriteSector(sector, start);
+    TracePrintf(1, "Done writing new directory to sector\n");
+
 }
 
 void createHandler() {
     //go down the nodes from the root until get to what you're creating, then add to the directory
+}
+
+
+/**
+returns the number of bytes into the last sector
+*/
+int sectorBytes(struct inode *node) {
+    return (node->size % sizeof(SECTORSIZE));
 }
 
 void init() {
@@ -171,6 +258,7 @@ void init() {
     
 
     int num_inodes = header->num_inodes;
+    TracePrintf(0, "there are %i inodes total in the fs\n", num_inodes);
     int num_used_blocks = ((num_inodes * INODESIZE) + BLOCKSIZE) / BLOCKSIZE; //number of blocks used by inodes (rounded up)
     int i;
     int num_inodes_to_read;
@@ -229,9 +317,11 @@ void init() {
             int in_idx;
             for (in_idx = start_index; in_idx < num_inodes_to_read + start_index; in_idx++) {
                 struct inode *node = &inodes[in_idx];
+                int inode_num = ((block_index - 1) * INODESPERBLOCK) + in_idx; //calculate the inode number
                 if (node->type == INODE_FREE) {
                     //the inode is free
-                    addFreeInode(node);
+                    TracePrintf(1, "Found a free inode!\n");
+                    addFreeInode(node, inode_num);
                 } else {
                     //node is not free, so iterate through its directs and mark their blocks as used
                     int num_blocks = (int) (node->size / BLOCKSIZE) + 1;
@@ -306,8 +396,29 @@ int readBlock(int block_index, void *buf) {
 
 }   
 
-//find free block
 
+/**
+finds the last directory name
+*/
+char *findLastDirName(char *str) {
+    int len = strlen(str);
+    
+    // If the string is empty or has no '/'
+    if (len == 0 || strchr(str, '/') == NULL) {
+        return str;
+    }
+    
+    // Iterate from the end of the string
+    int i;
+    for (i = len - 1; i >= 0; i--) {
+        if (str[i] == '/') {
+            // Return the pointer to the character immediately after the '/'
+            return &str[i + 1];
+        }
+    }
+    // Should never reach here
+    return str;
+}
 /**
 Reads the inode. writes the inode to the buffer
 */
@@ -325,6 +436,7 @@ int readInode(int inode_num, void *buf) {
     struct inode *node = (struct inode *)((char *)buffer + ((inode_num - 1) % inodes_per_block) * sizeof(struct inode));
     memcpy(buf, node, sizeof(struct inode));
     free(buffer);
+    TracePrintf(1, "Finished reading inode %i\n", inode_num);
     return 0;
 }
 
@@ -336,12 +448,89 @@ Reads the ith direct or indirect block of the inode, returns the block number. r
 
 // }
 
+/*
+calculates and returns the inode's (hypothetical) pointer
+*/
+
+struct inode *findInodePtr(int inode_num) {
+    void *buffer = malloc(SECTORSIZE); //the buffer to read into
+    int block_num = inode_num / (inodes_per_block) + 1;
+    int status = ReadSector(block_num, buffer);
+    if (status == ERROR) {
+        // handle ReadSector failure
+        free(buffer);
+        TracePrintf(0, "Error finding inode pointer\n");
+        //TODO: what to return here?
+    }
+    //TODO Check this logic compared to readInode
+    // struct inode *node = ((struct inode *)buffer)[(inode_num - 1) % inodes_per_block];//this should be the node
+    struct inode *node = (struct inode *)((char *)buffer + ((inode_num - 1) % inodes_per_block) * sizeof(struct inode));
+    return node;
+}
+/**
+Sets fields of new inode. size input does not include size of initial directories
+*/
+
+int setNewInode(int inode_num, short type, short nlink, int reuse, int size, int parent_inode_num) {
+    struct inode *node = findInodePtr(inode_num);
+    node->type = type;
+    node->nlink = nlink;
+    node->reuse = reuse;
+    node->size = size + 2 * sizeof(struct dir_entry);
+    node->direct[0] = findFreeBlock();
+
+
+    writeDirectoryToInode(node, inode_num, "."); //TODO: write this method?
+    writeDirectoryToInode(node, parent_inode_num, "..");
+    //TODO: set the inode first . and .. to itself and parentinodenum, respectively. 
+    return 0;
+
+
+}
+
+/**
+
+*/
+int writeDirectoryToInode(struct inode *node, int inode_num, char *name) {
+
+    int size = node->size;    
+    //TODO: need to check if there is space in the current sector before writing to it, else move to next sector
+    if (size > (NUM_DIRECT * BLOCKSIZE)) {
+
+    }
+    int bytes_into_sector = sectorBytes(node);
+    
+    // int dirs_into_sector = bytes_into_sector / sizeof(struct dir_entry);
+    int sector = getLastSector(node);
+    void *buf = malloc(SECTORSIZE);
+    if (ReadSector(sector, buf) == ERROR) {
+        //handle error here
+        return -1;
+    }
+    void *start = buf;
+    //int inode num in block = ((i * INODESIZE) + Blocksize - 1) / blocksize;
+    //curb = curblock + inodesize * (i % (INODESPERBLOCK))
+    buf = buf + bytes_into_sector; 
+    
+    struct dir_entry *entry = (struct dir_entry *)buf;
+    entry->inum = inode_num;
+    
+    // entry->name = name;
+    strcpy(entry->name, name);
+    node->size = node->size + sizeof(struct dir_entry);
+
+    if (WriteSector(sector, start) == ERROR) {
+        return -1;
+    }
+    return 0;
+}
+
 /**
 parses the path, returns the parent inode number if the path is valid or else returns an error 
 */
-int findParent(char *name) {
+int findParent(char *name, int curr_directory) {
     TracePrintf(1, "in FindParent\n");
-    TracePrintf(0, "finding parent inode in string %s", name);
+    TracePrintf(0, "finding parent inode in string %s\n", name);
 
     //first, parse the name to make sure it is a valid path structure (30 characters or less, with null)
     char clean[DIRNAMELEN];
@@ -367,6 +556,7 @@ int findParent(char *name) {
     struct inode *curr_inode = malloc(sizeof(struct inode)); //stores the current inode
     int curr_inode_num;
     if (root) { //if it's the root, set the current inode
+        TracePrintf(1, "we are pathfinding from the root\n");
         int read_s = readInode(ROOTINODE, curr_inode);
         if (read_s == ERROR) {
             TracePrintf(0, "error reading root inode in path validation\n");
@@ -375,13 +565,13 @@ int findParent(char *name) {
         curr_inode_num = ROOTINODE;
     } else {
         TracePrintf(0, "TODO in pathfinder: replace lines here with current directory\n");
-        return -1;
-        // int read_s = readInode(current_directory, curr_inode);
-        // curr_inode_num = current_directory;
-        // if (read_s == ERROR) {
-        //     TracePrintf(0, "error reading relative inode in path validation\n");
-        //     return -1;
-        // }
+        // return -1;
+        int read_s = readInode(curr_directory, curr_inode);
+        curr_inode_num = curr_directory;
+        if (read_s == ERROR) {
+            TracePrintf(0, "error reading relative inode in path validation\n");
+            return -1;
+        }
     }
 
     
@@ -400,6 +590,7 @@ int findParent(char *name) {
     //iterate through the strings, traverse down the inodes until you are at the last one
     if (num_tokens == 1) {
         //we are already in the parent directory. return the root node or relative root
+        TracePrintf(1, "Token: parent is root or relative root!\n");
         return curr_inode_num;
     }
     int traversed = 0; //number of traversed directories
@@ -476,8 +667,10 @@ int findParent(char *name) {
     // free(indirect_block);
     return curr_inode_num;
 }
-
-void addFreeInode(struct inode *node) { //stolen from previous lab
+/**
+Adds a free inode
+*/
+void addFreeInode(struct inode *node, int inode_num) { //stolen from previous lab
     
     TracePrintf(1, "Pushing free inode to waiting queue!\n");
     // wrap process as new queue item
@@ -485,6 +678,7 @@ void addFreeInode(struct inode *node) { //stolen from previous lab
     new->node = node;
     new->next = NULL;
     new->prev = NULL;
+    new->inode_num = inode_num;
 
     // push onto queue
     if (free_nodes_size == 0) {
@@ -497,6 +691,75 @@ void addFreeInode(struct inode *node) { //stolen from previous lab
     }
     free_nodes_size++;
 }
+
+/**
+finds an inode from the free list and removes it. returns the inode number
+*/
+int getFreeInode() {
+
+    TracePrintf(1, "getting a free inode\n");
+    struct in_str *nextChild = free_nodes_head;
+    if (free_nodes_head != NULL) {
+        if (free_nodes_head == free_nodes_tail) {
+            free_nodes_head = NULL;
+            free_nodes_tail = NULL;
+        } //else just pop the head
+        free_nodes_head = nextChild->next;
+        free_nodes_head->prev = NULL;
+    }
+    TracePrintf(1, "found a free inode! %i\n", nextChild->inode_num);
+    return nextChild->inode_num;
+}
+
+/**
+finds a block from the free list and removes it. returns the block number
+*/
+
+int findFreeBlock() {
+    int page;
+    if (numFreeBlocks == 0) {
+        return -1;
+    }
+    for (page = 0; page < numBlocks; page++)
+    {
+        if (freeBlocks[page] == BLOCK_FREE)
+        {
+            TracePrintf(0, "Found free block %d\n", page);
+            freeBlocks[page] = BLOCK_USED;
+            numFreeBlocks--;
+            return page;
+        }
+    }
+    TracePrintf(0, "ERROR: No free block found!\n");
+    return -1;
+}
+
+/**
+finds the blocknum of the last sector in the inode, else ERROR
+*/
+int getLastSector(struct inode *node) {
+    int size = node->size;
+    int sector_num = size / BLOCKSIZE;
+    if (sector_num < NUM_DIRECT) {
+        return node->direct[sector_num];
+    } else {
+        void *indirect_buf = malloc(SECTORSIZE);
+        if (ReadSector(node->indirect, indirect_buf) == ERROR) {
+            return ERROR;
+        }
+        int *sectors = (int *)indirect_buf;
+        free(indirect_buf);
+        return sectors[sector_num - NUM_DIRECT];
+    }
+    
+}
+
+/**
+cleans the string
+*/
+// char *stringCleaner(char *str, int field_size) {
+
+// }
 /**
 marks the block at blocknum as used
 */
