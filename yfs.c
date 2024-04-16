@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
                     }
                     case OPEN: {
                         TracePrintf(0, "Received OPEN message type\n");
-                        openHandler();
+                        openHandler((char *) message->ptr, message->data);
                         break;
                     }
                     case MKDIR: {
@@ -174,12 +174,11 @@ void mkDirHandler(struct msg *message, int senderPid) {
     //also update the parent inode size
 }
 
-void openHandler() {
+void openHandler(char *pathname, int cur_dir) {
     // traverse directory
+    int parent_inode = findParent(pathname, cur_dir);
+    
 
-    // find free inode
-    // QUESTION: does this mean it was opened before and alr has an inode? 
-    // do we search thru cache first? how do we retrieve the data that we stored on this file?
 }
 
 void createHandler() {
@@ -529,7 +528,6 @@ int findParent(char *name, int curr_directory) {
             return -1;
         }
     }
-
     
     char *tokens[DIRNAMELEN / 2]; //can't have more than DIRNAMELEN / 2 tokens a/a/a/a/a/a/a/
     int num_tokens = 0;
