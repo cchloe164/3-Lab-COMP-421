@@ -164,6 +164,10 @@ int Open(char *pathname) {
     container->ptr = (void *) pathname;
     container->data = current_directory;
     Send(container, -FILE_SERVER); // blocked here waiting for reply
+    if (container->data == ERMSG) {
+        return ERROR;
+    }
+
     fd_arr[fd]->inode_num = container->data;
     TracePrintf(0, "Open: inode num %d set.\n", fd_arr[fd]->inode_num);
 
@@ -212,6 +216,9 @@ int Create(char *pathname) {
 
     container->data = fd;
     Send(container, -FILE_SERVER);
+    if (container->data == ERMSG) {
+        return ERROR;
+    }
     fd_arr[fd]->inode_num = container->data;
     TracePrintf(0, "Create: inode num %d set.\n", fd_arr[fd]->inode_num);
 

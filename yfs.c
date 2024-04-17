@@ -31,7 +31,6 @@
 #define SYNC 14
 #define SHUTDOWN 15
 #define NONE -1
-#define ERR -2
 #define BLOCK_FREE 0
 #define BLOCK_USED 1
 #define DUMMY 50
@@ -159,7 +158,6 @@ int main(int argc, char** argv) {
                 //TODO: create a message type, encode the library codes in one of the fields, and call handlers?
                 int type = message->type;
                 TracePrintf(0, "Received message type %d\n", type);
-                TracePrintf(0, "Received message content %s\n", (char *)message->content);
                 switch(type) {
                     case NONE: {
                         TracePrintf(0, "Received NONE message type\n");
