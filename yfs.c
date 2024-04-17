@@ -36,6 +36,7 @@
 #define DUMMY 50
 #define ERMSG -2
 #define REPLYMSG -3
+#define FREEFILE 0
 
 struct msg { //Dummy message structure from the given PDF
     int type; 
@@ -45,7 +46,7 @@ struct msg { //Dummy message structure from the given PDF
 };
 
 struct in_str { //an inode linkedlist class
-    struct inode *node;
+    // struct inode *node;
     int inode_num;
     struct in_str *next;
     struct in_str *prev;
@@ -61,7 +62,7 @@ void init(); //initializes the fs structure
 int readInodeBlock(int block_index, int num_inodes_to_read, void *buf, int start_index);  //used only for init() to read blocks that contain inodes
 int readInode(int inode_num, void *buf); //Super useful: takes in an inode number and a buffer, reads the contents of the inode into the buffer (please remember to write back to disk)
 int writeInodeToDisk(int inode_num, struct inode *inode_to_cpy); //writes the inode info contained in inode_to_cpy to the inode in disk specified by inode_num
-void addFreeInode(struct inode *node, int inode_num); //used in init to add inodes to the freelist; if you free an inode, add it here
+void addFreeInode(int inode_num); //used in init to add inodes to the freelist; if you free an inode, add it here
 int findFreeBlock(); //finds a free block
 int writeDirectoryToInode(struct inode *node, int curr_inode, int inode_num, char *name); //writes a dir_entry containing inode_num and name to the inode curr_inode.
 int findParent(char *name, int curr_directory); //finds the parent of the path
@@ -79,7 +80,11 @@ void chDirHandler(struct msg *message, int senderPid);
 void createHandler(struct msg *message, int senderPid);
 void statHandler(struct msg *message, int senderPid);
 int checkPath(struct msg *message);
-// void rmDirHandler(struct msg *message, int senderPid);
+void rmDirHandler(struct msg *message, int senderPid);
+void prepFree(struct inode *curr_inode);
+
+int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_num);
+
 
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
@@ -178,11 +183,11 @@ int main(int argc, char** argv) {
                         statHandler(message, receive);
                         break;
                     }
-                    // case RMDIR: {
-                    //     TracePrintf(0, "Received RMDIR message type\n");
-                    //     rmDirHandler(message, receive);
-                    //     break;
-                    // }
+                    case RMDIR: {
+                        TracePrintf(0, "Received RMDIR message type\n");
+                        rmDirHandler(message, receive);
+                        break;
+                    }
                     case DUMMY: {
                         TracePrintf(0, "Received DUMMY message type\n");
                         // mkdirhandler(message);
@@ -252,7 +257,7 @@ void createHandler(struct msg *message, int senderPid) {
     // TracePrintf(1, "We are here4\n");
     int new_inode_num = getFreeInode();
     TracePrintf(1, "Setting new inode %i with type %i and parent %i\n", new_inode_num, INODE_DIRECTORY, parent_inode_num);
-    setNewInode(new_inode_num, INODE_REGULAR, 0, 0, 0, parent_inode_num); //TODO: change this -1
+    setNewInode(new_inode_num, INODE_REGULAR, 1, 0, 0, parent_inode_num); //TODO: change this -1
     // TracePrintf(1, "We are here6\n");
     writeDirectoryToInode(parentInode, parent_inode_num, new_inode_num, new_directory_name);
     // entry->name = findLastDirName(path);
@@ -300,11 +305,75 @@ void statHandler(struct msg *message, int senderPid) {
 
 /**
 Rmdirhandler: goes to the directory. checks if it is empty. if it is not empty (just ., .., and inode num 0 entries), error. if it is empty, update parent, free inode
+Top stolen from the guts of checkpath(), as we need to edit the parent as well. 
 */
-// void rmDirHandler(struct msg *message, int senderPid) {
+void rmDirHandler(struct msg *message, int senderPid) {
 
-// }
+        //go down the nodes from the root until get to what you're creating, then check that entry
+    //gotta go down the inodes from the root until you get to the parent directory
+    char *path = message->content;
+    int curr_directory = message->data;
+    int parent_inode_num = findParent(path, curr_directory);
+    if (parent_inode_num == ERROR) {
+        //handle error here
+        TracePrintf(0, "Error finding parent_inode num in checkpath\n");
+        // Reply(message, senderPid); 
+        replyError(message, senderPid);
+    }
+    struct inode *parentInode = malloc(sizeof(struct inode));
+    if (readInode(parent_inode_num, parentInode) == ERROR) {
+        //handler error here
+        TracePrintf(0, "Error reading parent_inode in checkpath\n");
+        // replyError(message, senderPid);
+        replyError(message, senderPid);
+    }
+    // TracePrintf(1, "We are here1\n");
+    TracePrintf(1, "parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
 
+    // next logic: search for the last entry in the dir to see if it exists. if it does, then return error.
+    if (parentInode->type != INODE_DIRECTORY) { 
+        TracePrintf(0, "parent inode %i is not a directory\n", parent_inode_num);
+        // replyError(message, senderPid);
+        replyError(message, senderPid);
+    }
+    char *my_name = findLastDirName(path);
+
+    int matching_inode_num = findDirectoryEntry(parentInode, parent_inode_num, my_name);
+    if (matching_inode_num == ERROR) {
+        replyError(message, senderPid);
+    }
+    //we are a valid directory entry. now need to free the inode and update the parent's entry
+
+    struct inode *curr_inode = malloc(sizeof(struct inode));
+    if (readInode(matching_inode_num, curr_inode) == ERROR) {
+        //handler error here
+        TracePrintf(0, "Error reading parent_inode in checkpath\n");
+        // replyError(message, senderPid);
+        replyError(message, senderPid);
+    }
+    
+    prepFree(curr_inode);
+    writeInodeToDisk(matching_inode_num, curr_inode);
+    addFreeInode(matching_inode_num);
+
+
+    //update the parent's entry
+    freeDirectoryEntry(parentInode, parent_inode_num, matching_inode_num);
+}
+
+/**
+Prepares the inode to be freed. Sets all fields to corresponding free values
+*/
+
+void prepFree(struct inode *curr_inode) {
+    //set the fields of the free inode (in the buffer), then write it to disk with updates
+    curr_inode->type = INODE_FREE;
+    curr_inode->nlink = 0;
+    curr_inode->reuse = curr_inode->reuse + 1;
+    curr_inode->size = 0;
+    //TODO: check direct and indirect fields here
+    return;
+}
 
 /**
 Basically checks the path and returns the directory inode at the end of the path if it exists/is valid. iolib should change the directory to this inode
@@ -381,7 +450,7 @@ void mkDirHandler(struct msg *message, int senderPid) {
     // TracePrintf(1, "We are here4\n");
     int new_inode_num = getFreeInode();
     TracePrintf(1, "Setting new inode %i with type %i and parent %i\n", new_inode_num, INODE_DIRECTORY, parent_inode_num);
-    setNewInode(new_inode_num, INODE_DIRECTORY, 0, 0, 0, parent_inode_num); //TODO: change this -1
+    setNewInode(new_inode_num, INODE_DIRECTORY, 1, 0, 0, parent_inode_num); //TODO: change this -1
     // TracePrintf(1, "We are here6\n");
 
     //THIS WAS COMMENTED OUT because it's handled by WriteDirtoInode function
@@ -503,7 +572,7 @@ void init() {
                 if (node->type == INODE_FREE) {
                     //the inode is free
                     TracePrintf(1, "Found a free inode!\n");
-                    addFreeInode(node, inode_num);
+                    addFreeInode(inode_num);
                 } else {
                     //node is not free, so iterate through its directs and mark their blocks as used
                     int num_blocks = (int) (node->size / BLOCKSIZE) + 1;
@@ -786,6 +855,7 @@ int numBlocksUsedBy(struct inode *node) {
 Searches for the given name in a set of directories in the given inode. 
 Returns ERROR if not found, otherwise returns the inodenum corresponding to the directory entry. 
 Copied from the findParent() function as of 4/16/24 at 15:06pm (so if it's wrong, change both the findParent() and this, or call this in FindParent())
+as of 4/16/24, also copied this for the freeDirectoryEntry (added a freeing line)
 */
 
 int findDirectoryEntry(struct inode *curr_inode, int curr_inode_num, char *name) {
@@ -836,6 +906,9 @@ int findDirectoryEntry(struct inode *curr_inode, int curr_inode_num, char *name)
         for (entries = 0; entries < entries_to_traverse_in_block; entries++) {
             TracePrintf(1, "Current entry name is %s, corresponding to inode number %i\n", current_entry->name, current_entry->inum);
             //check all the entries in the block
+            if (current_entry->inum == FREEFILE) {
+                continue;
+            }
             if (strcmp(current_string, current_entry->name) == 0) {
                 //found the next inode
                 dir_found = true;
@@ -856,6 +929,87 @@ int findDirectoryEntry(struct inode *curr_inode, int curr_inode_num, char *name)
     (void)size_traversed;
     if (!dir_found) { //didn't find the current subdirectory child in the current directory spot
         TracePrintf(1, "Couldn't directory %s!\n", current_string);
+        return ERROR;
+    } //otherwise, continue iterating through the path
+    return found_inode_num;
+}
+
+/**
+Frees the inode dir_entry (set the inode_num field to 0). almost identical to findDirectoryEntry
+*/
+
+int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_to_remove) {
+    // char *current_string = name; //the current directory to go to
+    TracePrintf(1, "Looking for node %i in freeDirectoryEntry in inode %i\n", inode_to_remove, curr_inode_num);
+    if (curr_inode->type != INODE_DIRECTORY) { //the parent is not a directory. should never hit this, in theory
+        TracePrintf(0, "Current parent (node %i) is of type %i\n", curr_inode_num, curr_inode->type);
+        TracePrintf(0, "Current parent (node %i) is not a directory, should never hit this though\n", curr_inode_num);
+        return ERROR;
+    }
+    //get the directory entry in this directory
+    //iterate through the blocks of the inode and check if they are a directory. (from 0 to size)
+    //If they are a directory, check if their string is the same as the current string. 
+    int blocks_iterated = 0;
+    void *block = malloc(BLOCKSIZE); //the current direct block 
+    void *indirect_block = malloc(BLOCKSIZE); //the indirect block, if applicable
+    struct dir_entry *current_entry; //the current entry we are checking 
+    int dir_found = false; //have we found the directory?
+    int block_num; //the current block number
+    int size_traversed = 0; //number of bytes traversed
+    int num_blocks_to_traverse = (curr_inode->size / (BLOCKSIZE * 1.0)) + 1; //number of blocks to traverse: size / blocksize + 1 (bc it rounds down)
+    
+    int found_inode_num;
+    while (!dir_found && blocks_iterated < num_blocks_to_traverse) {
+        TracePrintf(1, "Searching block %i\n", blocks_iterated);
+        // go through the block, iterate through the necessary number of directory entries
+        int bytes_to_traverse_in_block = min(BLOCKSIZE, (curr_inode->size) - size_traversed); //this is the number of bytes to read from the current block
+        int entries_to_traverse_in_block = bytes_to_traverse_in_block / sizeof(struct dir_entry); //this is the number of directory entries to check in the current block
+        if (blocks_iterated < NUM_DIRECT) {
+            //we are in the direct set of blocks
+            block_num = curr_inode->direct[blocks_iterated]; // this is the block index to read from
+        } else {
+            //otherwise we are in indirect block. find the block index from the indirect block
+            int read_status = readBlock(curr_inode->indirect, indirect_block);
+            if (read_status == ERROR) {
+                TracePrintf(0, "Error reading indirect block in path validation\n");
+                return ERROR;
+            }
+            block_num = ((int *)indirect_block)[blocks_iterated - NUM_DIRECT];
+        }
+        int readStatus = readBlock(block_num, block); //read the block into memory
+        if (readStatus == ERROR) {
+                TracePrintf(0, "Error reading a subBlock in path validation\n");
+                return ERROR;
+            }
+        current_entry = (struct dir_entry *)block; // start at the first entry
+        int entries;
+        for (entries = 0; entries < entries_to_traverse_in_block; entries++) {
+            TracePrintf(1, "Current entry name is %s, corresponding to inode number %i\n", current_entry->name, current_entry->inum);
+            //check all the entries in the block
+            if (current_entry->inum == FREEFILE) {
+                continue;
+            }
+            if (current_entry->inum == inode_to_remove) { //this is what is changed
+                //found the next inode
+                dir_found = true;
+                //check if it is a directory type occurs at the top of the traverse tokens loop
+                found_inode_num = current_entry->inum;
+                TracePrintf(1, "Found node %s, with inode %i!\n", found_inode_num, found_inode_num);
+                current_entry->inum = 0;
+                // curr_inode_num = current_entry->inum;
+                // readInode(curr_inode_num, curr_inode); //read the new inode into the current inode field
+                break;
+            }
+            TracePrintf(1, "Entry inode %s does not match %s\n", current_entry->inum, inode_to_remove);
+            current_entry = (struct dir_entry *)((char *)current_entry + sizeof (struct dir_entry));
+
+        }
+        blocks_iterated++;
+        size_traversed += bytes_to_traverse_in_block;
+    }
+    (void)size_traversed;
+    if (!dir_found) { //didn't find the current subdirectory child in the current directory spot
+        TracePrintf(1, "Couldn't find node %s!\n", inode_to_remove);
         return ERROR;
     } //otherwise, continue iterating through the path
     return found_inode_num;
@@ -1048,12 +1202,12 @@ int findParent(char *name, int curr_directory) {
 /**
 Adds a free inode
 */
-void addFreeInode(struct inode *node, int inode_num) { //stolen from previous lab
+void addFreeInode(int inode_num) { //stolen from previous lab
     
     TracePrintf(1, "Pushing free inode to waiting queue!\n");
     // wrap process as new queue item
     struct in_str *new = malloc(sizeof(struct in_str));
-    new->node = node;
+    // new->node = node;
     new->next = NULL;
     new->prev = NULL;
     new->inode_num = inode_num;
@@ -1086,6 +1240,7 @@ int getFreeInode() {
         free_nodes_head->prev = NULL;
     }
     TracePrintf(1, "found a free inode! %i\n", nextChild->inode_num);
+    free_nodes_size--;
     return nextChild->inode_num;
 }
 
