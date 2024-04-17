@@ -9,12 +9,7 @@
 int main()
 {
     TracePrintf(0, "Making new directory...\n");
-    MkDir("woah");
-    // MkDir("woah");
-    // MkDir("woah");
-    // MkDir("woah");
-    // MkDir("woah");
-    // printf("done.\n");
+    Open("a");
 
     return (0);
 }
