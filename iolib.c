@@ -60,6 +60,12 @@ struct msg {    // 32-byte all-purpose message
     void *ptr;
 };
 
+struct ext_msg {
+    void *buf;
+    int size;
+    int inode_num;
+};
+
 /* Set up file storage.*/
 void initFileStorage() {
     TracePrintf(0, "Initializing file storage!\n");
@@ -171,7 +177,7 @@ int Open(char *pathname) {
     fd_arr[fd]->inode_num = container->data;
     TracePrintf(0, "Open: inode num %d set.\n", fd_arr[fd]->inode_num);
 
-    TracePrintf(0, "Open: message sent.\n");
+    TracePrintf(0, "Open: success.\n");
     return 0;
 }
 
@@ -214,7 +220,8 @@ int Create(char *pathname) {
     fd_arr[fd]->used = 1;
     fd_arr[fd]->cur_pos = 0;
 
-    container->data = fd;
+    container->ptr = (void *)pathname;
+    container->data = current_directory;
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG) {
         return ERROR;
@@ -222,19 +229,37 @@ int Create(char *pathname) {
     fd_arr[fd]->inode_num = container->data;
     TracePrintf(0, "Create: inode num %d set.\n", fd_arr[fd]->inode_num);
 
-    TracePrintf(0, "Create: message sent.\n");
+    TracePrintf(0, "Create: success.\n");
     return 0;
 }
 
-// int Read(int fd, void *buf, int size) {
-//     TracePrintf(0, "Create function called from iolib!\n");
-//     struct fd *target_fd = fd_arr[fd];
-//     struct file *target_file = target_fd->file;
 
-//     fread(target_file)
 
-//     return 0;
-// }
+int Read(int fd, void *buf, int size) {
+    TracePrintf(0, "iolib READing fd %d...\n", fd);
+    if (fd_arr[fd]->used == 0) {
+        TracePrintf(0, "Create: file not open.\n");
+        return ERROR;
+    }
+
+    // build message
+    struct msg *container = malloc(sizeof(struct msg));
+    struct ext_msg *extra_info = malloc(sizeof(struct ext_msg));
+    extra_info->buf = buf;
+    extra_info->size = size;
+    extra_info->inode_num = fd_arr[fd]->inode_num;
+    container->type = READ;
+    container->ptr = extra_info;
+
+    Send(container, -FILE_SERVER);
+    if (container->data == ERMSG)
+    {
+        return ERROR;
+    }
+
+    TracePrintf(0, "Read: success.\n");
+    return 0;
+}
 
 // int Write(int fd, void *, int) {
 //     return 0;
