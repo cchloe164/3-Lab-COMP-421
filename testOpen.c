@@ -13,9 +13,9 @@ int main()
     initFileStorage();
     Dummy("testing");
     // Open("a");
-    // Create("a");
+    Create("a");
     void *buf = malloc(sizeof(char) * 10);
-    Read(19, buf, sizeof(char) * 10);
+    Read(0, buf, sizeof(char) * 10);
 
     return (0);
 }

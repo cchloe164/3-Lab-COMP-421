@@ -37,6 +37,7 @@
 // struct file *file_arr[MAX_OPEN_FILES];
 struct fd *fd_arr[MAX_OPEN_FILES]; // index = fd num
 int open_files = 0;
+int init_storage = 0;
 
 int current_directory = ROOTINODE;
 // struct file {
@@ -177,6 +178,7 @@ int Open(char *pathname) {
     fd_arr[fd]->inode_num = container->data;
     TracePrintf(0, "Open: inode num %d set.\n", fd_arr[fd]->inode_num);
 
+    free(container);
     TracePrintf(0, "Open: success.\n");
     return 0;
 }
@@ -206,6 +208,11 @@ int Close(int fd) {
  */
 int Create(char *pathname) {
     TracePrintf(0, "iolib CREATEing pathname %s...\n", pathname);
+
+    if (init_storage == 0) {
+        initFileStorage();
+    }
+
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = CREATE;
@@ -229,6 +236,7 @@ int Create(char *pathname) {
     fd_arr[fd]->inode_num = container->data;
     TracePrintf(0, "Create: inode num %d set.\n", fd_arr[fd]->inode_num);
 
+    free(container);
     TracePrintf(0, "Create: success.\n");
     return 0;
 }
@@ -238,7 +246,7 @@ int Create(char *pathname) {
 int Read(int fd, void *buf, int size) {
     TracePrintf(0, "iolib READing fd %d...\n", fd);
     if (fd_arr[fd]->used == 0) {
-        TracePrintf(0, "Create: file not open.\n");
+        TracePrintf(0, "Read: file not open.\n");
         return ERROR;
     }
 
@@ -257,13 +265,41 @@ int Read(int fd, void *buf, int size) {
         return ERROR;
     }
 
+    free(container);
+    free(extra_info);
     TracePrintf(0, "Read: success.\n");
     return 0;
 }
 
-// int Write(int fd, void *, int) {
-//     return 0;
-// }
+int Write(int fd, void *buf, int size) {
+    TracePrintf(0, "iolib WRITEing fd %d...\n", fd);
+    if (fd_arr[fd]->used == 0)
+    {
+        TracePrintf(0, "Write: file not open.\n");
+        return ERROR;
+    }
+
+    // build message
+    struct msg *container = malloc(sizeof(struct msg));
+    struct ext_msg *extra_info = malloc(sizeof(struct ext_msg));
+    extra_info->buf = buf;
+    extra_info->size = size;
+    extra_info->inode_num = fd_arr[fd]->inode_num;
+    container->type = WRITE;
+    container->ptr = extra_info;
+
+    Send(container, -FILE_SERVER);
+    if (container->data == ERMSG)
+    {
+        return ERROR;
+    }
+
+    free(container);
+    free(extra_info);
+    TracePrintf(0, "Write: success.\n");
+    return 0;
+}
+
 // int Seek(int, int, int) {
 //     return 0;
 // }
