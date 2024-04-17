@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <string.h>
+#include <comp421/iolib.h>
 // #include "iolib.c"
 #include <comp421/yalnix.h>
 
@@ -16,11 +17,25 @@
 #define OPEN 0
 #define CLOSE 1
 #define CREATE 2
-#define MKDIR 11
+#define READ 3
+#define WRITE 4
+#define SEEK 5
+#define LINK 6
+#define UNLINK 7
+#define SYMLINK 8
+#define READLINK 9
+#define MKDIR 10
+#define RMDIR 11
+#define CHDIR 12
+#define STAT 13
+#define SYNC 14
+#define SHUTDOWN 15
 #define NONE -1
 #define BLOCK_FREE 0
 #define BLOCK_USED 1
 #define DUMMY 50
+#define ERMSG -2
+#define REPLYMSG -3
 
 struct msg { //Dummy message structure from the given PDF
     int type; 
@@ -58,6 +73,13 @@ void mkDirHandler(struct msg *message, int senderPid); //handles mkdir requests
 int getLastSector(struct inode *node); //gets the last sector used in the inode
 int getFreeInode(); //gets a free inode
 char *findLastDirName(char *name); //finds the last directory name in a path (after the last '/', or the whole string)
+int replyError(struct msg *message, int pid);
+int replyWithInodeNum(struct msg *message, int pid, int inode_num);
+void chDirHandler(struct msg *message, int senderPid);
+void createHandler(struct msg *message, int senderPid);
+void statHandler(struct msg *message, int senderPid);
+int checkPath(struct msg *message);
+// void rmDirHandler(struct msg *message, int senderPid);
 
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
@@ -141,6 +163,26 @@ int main(int argc, char** argv) {
                         mkDirHandler(message, receive);
                         break;
                     }
+                    case CREATE: {
+                        TracePrintf(0, "Received CREATE message type\n");
+                        createHandler(message, receive);
+                        break;
+                    }
+                    case CHDIR: {
+                        TracePrintf(0, "Received CHDIR message type\n");
+                        chDirHandler(message, receive);
+                        break;
+                    }
+                    case STAT: {
+                        TracePrintf(0, "Received STAT message type\n");
+                        statHandler(message, receive);
+                        break;
+                    }
+                    // case RMDIR: {
+                    //     TracePrintf(0, "Received RMDIR message type\n");
+                    //     rmDirHandler(message, receive);
+                    //     break;
+                    // }
                     case DUMMY: {
                         TracePrintf(0, "Received DUMMY message type\n");
                         // mkdirhandler(message);
@@ -166,11 +208,59 @@ int main(int argc, char** argv) {
 
 
 /**
-
+    Creates a new directory entry with an empty inode at the end, name from the message. Copied from mkDirHandler, changed the node type created (it's now a INODE_REGULAR)
 */
-// void createHandler() {
-//     //go down the nodes from the root until get to what you're creating, then add to the directory
-// }
+void createHandler(struct msg *message, int senderPid) {
+    //go down the nodes from the root until get to what you're creating, then add to the directory
+        //gotta go down the inodes from the root until you get to the parent directory, then add a new struct directory to the inode and increment size
+    //also update the parent inode size
+    char *path = message->content;
+    int curr_directory = message->data;
+    int parent_inode_num = findParent(path, curr_directory);
+    if (parent_inode_num == ERROR) {
+        //handle error here
+        TracePrintf(0, "Error finding parent_inode num in createHandler\n");
+        replyError(message, senderPid);
+        // Reply(message, senderPid); 
+        return;
+    }
+    struct inode *parentInode = malloc(sizeof(struct inode));
+    if (readInode(parent_inode_num, parentInode) == ERROR) {
+        //handler error here
+        TracePrintf(0, "Error reading parent_inode in createHandler\n");
+        replyError(message, senderPid);
+        return;
+    }
+    // TracePrintf(1, "We are here1\n");
+    TracePrintf(1, "parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
+
+    // next logic: search for the last entry in the dir to see if it exists. if it does, then return error.
+    if (parentInode->type != INODE_DIRECTORY) { 
+        TracePrintf(0, "parent inode %i is not a directory\n", parent_inode_num);
+        replyError(message, senderPid);
+        return;
+    }
+    char *new_directory_name = findLastDirName(path);
+
+    int matching_inode = findDirectoryEntry(parentInode, parent_inode_num, new_directory_name);
+    if (matching_inode != ERROR) {
+        TracePrintf(0, "directory %s already exists in inode %i. \n", new_directory_name, parent_inode_num);
+        replyError(message, senderPid);
+        return;
+    }
+    
+    // TracePrintf(1, "We are here4\n");
+    int new_inode_num = getFreeInode();
+    TracePrintf(1, "Setting new inode %i with type %i and parent %i\n", new_inode_num, INODE_DIRECTORY, parent_inode_num);
+    setNewInode(new_inode_num, INODE_REGULAR, 0, 0, 0, parent_inode_num); //TODO: change this -1
+    // TracePrintf(1, "We are here6\n");
+    writeDirectoryToInode(parentInode, parent_inode_num, new_inode_num, new_directory_name);
+    // entry->name = findLastDirName(path);
+    //update parent
+    writeInodeToDisk(parent_inode_num, parentInode);
+    TracePrintf(1, "parent is inode number %i with inode type %i and size %i", parent_inode_num, parentInode->type, parentInode->size);
+    replyWithInodeNum(message, senderPid, new_inode_num);
+}
 
 /**
 
@@ -186,23 +276,55 @@ The fields in the information structure are copied from the information in the f
 On success, this request returns 0; on any error, the value ERROR is returned.
 */
 
-// void statHandler(struct msg *message, int senderPid) {
+void statHandler(struct msg *message, int senderPid) {
+    int inode_num = checkPath(message);
+    if (inode_num == ERROR) { //error reaching directory or directory does not exist
+        replyError(message, senderPid);
+    } else { //gotta read the info from the node into a stat. put into contents (struct stat is 16 bytes)
+        void *buf = malloc(sizeof(struct inode));
+        readInode(inode_num, buf);
+        struct inode *node = (struct inode *)buf;
+        struct Stat *statbuf = (struct Stat *)message->content;
+        statbuf->inum = inode_num;
+        statbuf->type = node->type;
+        statbuf->size = node->size;
+        statbuf->nlink = node->nlink;
+        //reply with that contents
+        message->type = REPLYMSG;
+        message->data = inode_num;
+        Reply(message, senderPid);
+
+    }
+}
+
+
+/**
+Rmdirhandler: goes to the directory. checks if it is empty. if it is not empty (just ., .., and inode num 0 entries), error. if it is empty, update parent, free inode
+*/
+// void rmDirHandler(struct msg *message, int senderPid) {
 
 // }
 
-/**
-
-*/
-
-// void chDirHandler(struct msg *message, int senderPid) {
-
-// }
 
 /**
-Write
-go to inode number, go to blocks
-
+Basically checks the path and returns the directory inode at the end of the path if it exists/is valid. iolib should change the directory to this inode
 */
+
+void chDirHandler(struct msg *message, int senderPid) {
+    int inode_num = checkPath(message);
+    if (inode_num == ERROR) { //error reaching directory or directory does not exist
+        replyError(message, senderPid);
+    } else { //gotta check if it is a directory type
+        void *buf = malloc(sizeof(struct inode));
+        readInode(inode_num, buf);
+        struct inode *node = (struct inode *)buf;
+        if (node->type == INODE_DIRECTORY) {
+            replyWithInodeNum(message, senderPid, inode_num);
+        } else {
+            replyError(message, senderPid);
+        }
+    }
+}
 
 /**
 will Reply with messages that contain useful contents for iolib maintenance
@@ -216,27 +338,31 @@ void mkDirHandler(struct msg *message, int senderPid) {
     if (parent_inode_num == ERROR) {
         //handle error here
         TracePrintf(0, "Error finding parent_inode num in mkdirhandler\n");
-        Reply(message, senderPid);
+        replyError(message, senderPid);
         return;
     }
     struct inode *parentInode = malloc(sizeof(struct inode));
     if (readInode(parent_inode_num, parentInode) == ERROR) {
         //handler error here
         TracePrintf(0, "Error reading parent_inode in mkdirhandler\n");
-        Reply(message, senderPid);
+        replyError(message, senderPid);
         return;
     }
     // TracePrintf(1, "We are here1\n");
     TracePrintf(1, "parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
 
-    //TODO next logic: search for the last entry in the dir to see if it exists. if it does, then return error.
-
+    // next logic: search for the last entry in the dir to see if it exists. if it does, then return error.
+    if (parentInode->type != INODE_DIRECTORY) {
+        TracePrintf(0, "parent inode %i is not a directory\n", parent_inode_num);
+        replyError(message, senderPid);
+        return;
+    }
     char *new_directory_name = findLastDirName(path);
 
     int matching_inode = findDirectoryEntry(parentInode, parent_inode_num, new_directory_name);
     if (matching_inode != ERROR) {
         TracePrintf(0, "directory %s already exists in inode %i. \n", new_directory_name, parent_inode_num);
-        Reply(message, senderPid);
+        replyError(message, senderPid);
         return;
     }
     
@@ -255,7 +381,7 @@ void mkDirHandler(struct msg *message, int senderPid) {
     // TracePrintf(1, "We are here4\n");
     int new_inode_num = getFreeInode();
     TracePrintf(1, "Setting new inode %i with type %i and parent %i\n", new_inode_num, INODE_DIRECTORY, parent_inode_num);
-    setNewInode(new_inode_num, INODE_DIRECTORY, -1, 0, 0, parent_inode_num); //TODO: change this -1
+    setNewInode(new_inode_num, INODE_DIRECTORY, 0, 0, 0, parent_inode_num); //TODO: change this -1
     // TracePrintf(1, "We are here6\n");
 
     //THIS WAS COMMENTED OUT because it's handled by WriteDirtoInode function
@@ -286,17 +412,12 @@ void mkDirHandler(struct msg *message, int senderPid) {
     //update parent
     writeInodeToDisk(parent_inode_num, parentInode);
     TracePrintf(1, "parent is inode number %i with inode type %i and size %i", parent_inode_num, parentInode->type, parentInode->size);
-    Reply(message, senderPid);
+    replyWithInodeNum(message, senderPid, new_inode_num);
 
 }
 
 
-/**
-returns the number of bytes into the last sector
-*/
-int sectorBytes(struct inode *node) {
-    return (node->size % SECTORSIZE);
-}
+
 
 void init() {
 
@@ -418,6 +539,52 @@ void init() {
 }
 
 /**
+Checks the path contained in the message's contents. returns the inode number if the path is valid, else ERROR if anything else. 
+copied from top of createhandler / mkdirhandler (they should be the same)
+*/
+int checkPath(struct msg *message) {
+    //go down the nodes from the root until get to what you're creating, then check that entry
+    //gotta go down the inodes from the root until you get to the parent directory
+    char *path = message->content;
+    int curr_directory = message->data;
+    int parent_inode_num = findParent(path, curr_directory);
+    if (parent_inode_num == ERROR) {
+        //handle error here
+        TracePrintf(0, "Error finding parent_inode num in checkpath\n");
+        // Reply(message, senderPid); 
+        return -1;
+    }
+    struct inode *parentInode = malloc(sizeof(struct inode));
+    if (readInode(parent_inode_num, parentInode) == ERROR) {
+        //handler error here
+        TracePrintf(0, "Error reading parent_inode in checkpath\n");
+        // replyError(message, senderPid);
+        return -1;
+    }
+    // TracePrintf(1, "We are here1\n");
+    TracePrintf(1, "parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
+
+    // next logic: search for the last entry in the dir to see if it exists. if it does, then return error.
+    if (parentInode->type != INODE_DIRECTORY) { 
+        TracePrintf(0, "parent inode %i is not a directory\n", parent_inode_num);
+        // replyError(message, senderPid);
+        return -1;
+    }
+    char *new_directory_name = findLastDirName(path);
+
+    int matching_inode = findDirectoryEntry(parentInode, parent_inode_num, new_directory_name);
+    //will be error or an inode number. return whatever we get. 
+
+    return matching_inode;
+
+}
+/**
+returns the number of bytes into the last sector
+*/
+int sectorBytes(struct inode *node) {
+    return (node->size % SECTORSIZE);
+}
+/**
 reads the block at index block_index, which contains a bunch of inodes. This is for INIT only
 Returns BLOCK_FREE if the block is free, else BLOCK_USED
 */
@@ -457,6 +624,7 @@ int readBlock(int block_index, void *buf) {
     return 0;
 
 }   
+
 
 
 /**
@@ -981,4 +1149,19 @@ int markUsed(int block_num) {
 
 int getPid() {
     return pid;
+}
+
+int replyWithInodeNum(struct msg *message, int pid, int inode_num) {
+    message->type = REPLYMSG;
+    message->data = inode_num;
+    Reply(message, pid);
+    return 0;
+}
+
+int replyError(struct msg *message, int pid) {
+    message->type = ERMSG;
+    message->data = ERMSG;
+    // message->content = "ERROR\n"
+    Reply(message, pid);
+    return 0;
 }

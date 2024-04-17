@@ -10,12 +10,29 @@
 #include <string.h>
 #include <comp421/yalnix.h>
 
+
 #define OPEN 0
 #define CLOSE 1
 #define CREATE 2
-#define MKDIR 11
+#define READ 3
+#define WRITE 4
+#define SEEK 5
+#define LINK 6
+#define UNLINK 7
+#define SYMLINK 8
+#define READLINK 9
+#define MKDIR 10
+#define RMDIR 11
+#define CHDIR 12
+#define STAT 13
+#define SYNC 14
+#define SHUTDOWN 15
 #define NONE -1
+#define BLOCK_FREE 0
+#define BLOCK_USED 1
 #define DUMMY 50
+#define ERMSG -2
+#define REPLYMSG -3
 
 struct file *file_arr[MAX_OPEN_FILES];
 struct fd *fd_arr[MAX_OPEN_FILES]; // index = fd num
@@ -281,7 +298,12 @@ int MkDir(char *path) { //used to send a dummy message
     // TracePrintf(0, "Making directory %s\n", path);
     // TracePrintf(0, "testset2\n");
     Send(container, -FILE_SERVER);
-    TracePrintf(0, container->content);
+    if (container->type == REPLYMSG) {
+        TracePrintf(0, container->content);
+    } else if (container->type == ERMSG) {
+        TracePrintf(0, "Error making directory \n");
+        return -1;
+    }
     
     // (void) path;
     return 0;
