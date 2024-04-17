@@ -69,10 +69,11 @@ void initFileStorage() {
         // new_file.open = 0;
         // file_arr[fd] = &new_file;
 
-        struct fd new_fd;
-        new_fd.used = 0;
-        new_fd.cur_pos = 0;
-        fd_arr[fd] = &new_fd;
+        struct fd *new_fd = malloc(sizeof(struct fd));
+        new_fd->used = 0;
+        new_fd->cur_pos = 0;
+        new_fd->inode_num = -1;
+        fd_arr[fd] = new_fd;
     }
 }
 
@@ -176,9 +177,9 @@ int Open(char *pathname) {
 */
 int Close(int fd) {
     TracePrintf(0, "iolib CLOSEing fd %d...\n", fd);
-    if (fd_arr[fd]->used == 1)
+    if (fd_arr[fd]->used == 0)
     { // file is not open
-        TracePrintf(1, "Close: file is not open.\n");
+        TracePrintf(0, "Close: file is not open.\n");
         return ERROR;
     }
     else
