@@ -218,9 +218,8 @@ int main(int argc, char** argv) {
 
 }
 
-<<<<<<< HEAD
 void openHandler(struct msg *message, int sender_pid) {
-    TracePrintf(5, "Received pathname %s\tcur dir %d\tpid %d\n", message->ptr, message->data, sender_pid);
+    TracePrintf(0, "Received pathname %s\tcur dir %d\tpid %d\n", message->ptr, message->data, sender_pid);
     // char *pathname = message->ptr;
     // int cur_dir = message->data;
 
@@ -238,7 +237,6 @@ void openHandler(struct msg *message, int sender_pid) {
     (void) message;
     (void) sender_pid;
 };
-=======
 
 /**
     Creates a new directory entry with an empty inode at the end, name from the message. Copied from mkDirHandler, changed the node type created (it's now a INODE_REGULAR)
@@ -406,7 +404,6 @@ void prepFree(struct inode *curr_inode) {
 /**
 Basically checks the path and returns the directory inode at the end of the path if it exists/is valid. iolib should change the directory to this inode
 */
->>>>>>> cf8bd3c4991e982f0f15831f463b7e6555ae2323
 
 void chDirHandler(struct msg *message, int senderPid) {
     int inode_num = checkPath(message);
@@ -1327,8 +1324,6 @@ int markUsed(int block_num) {
 
     freeBlocks[block_num] = BLOCK_USED;
     return 0;
-<<<<<<< HEAD
-=======
 }
 
 int getPid() {
@@ -1348,5 +1343,4 @@ int replyError(struct msg *message, int pid) {
     // message->content = "ERROR\n"
     Reply(message, pid);
     return 0;
->>>>>>> cf8bd3c4991e982f0f15831f463b7e6555ae2323
 }

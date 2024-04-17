@@ -146,9 +146,9 @@ int findFreeFD() {
  * This request opens the file named by pathname.
 */
 int Open(char *pathname) {
-
+    TracePrintf(0, "iolib OPENing file %s...\n", pathname);
     // build message
-    struct msg *container;
+    struct msg *container = malloc(sizeof(struct msg));
     container->type = OPEN;
 
     // check if there is space in storage
@@ -162,11 +162,11 @@ int Open(char *pathname) {
     
     container->ptr = (void *) pathname;
     container->data = current_directory;
-    Send((void *)&container, -FILE_SERVER); // blocked here waiting for reply
+    Send(container, -FILE_SERVER); // blocked here waiting for reply
     fd_arr[fd]->inode_num = container->data;
-    TracePrintf(5, "Open: inode num %d set.\n", fd_arr[fd]->inode_num = container->data);
+    TracePrintf(0, "Open: inode num %d set.\n", fd_arr[fd]->inode_num);
 
-    TracePrintf(5, "Open: message sent.\n");
+    TracePrintf(0, "Open: message sent.\n");
     return 0;
 }
 
@@ -174,64 +174,49 @@ int Open(char *pathname) {
  * This request closes the open file specified by the file descriptor number fd . If fd is not the descriptor
  * number of a file currently open in this process, this request returns ERROR; otherwise, it returns 0
 */
-// int Close(int fd) {
-//     // free up fd
-//     fd_arr[fd]->used = 0;
+int Close(int fd) {
+    TracePrintf(0, "iolib CLOSEing fd %d...\n", fd);
+    if (fd_arr[fd]->used == 1)
+    { // file is not open
+        TracePrintf(1, "Close: file is not open.\n");
+        return ERROR;
+    }
+    else
+    { // close file
+        fd_arr[fd]->used = 0;
+        open_files--;
 
-//     // find target file
-//     struct file *target_file = fd_arr[fd]->file;
-//     if (target_file->open == 1) { // file is not open
-//         TracePrintf(1, "Close: file is not open.\n");
-//         return ERROR;
-//     } else { // close file
-//         target_file->open = 0;
-//         fclose(target_file->fptr);
-//         open_files--;
-
-//         return 0;
-//     }
-// }
+        return 0;
+    }
+}
 
 /**
  * This request creates and opens the new file named pathname .
  */
-// int Create(char *pathname) {
-//     TracePrintf(0, "Create function called from iolib!\n");
-//     // build message
-//     struct msg *container;
-//     container->type = CREATE;
+int Create(char *pathname) {
+    TracePrintf(0, "iolib CREATEing pathname %s...\n", pathname);
+    // build message
+    struct msg *container = malloc(sizeof(struct msg));
+    container->type = CREATE;
 
-//     // TODO: check if pathname directories alr exist
-//     if (strcmp(pathname, ".") == 0 || strcmp(pathname, "..") == 0)
-//     { // TODO: check if name is same as any directory
-//         TracePrintf(1, "Create: filename cannot be the same as a directory.\n");
-//         return ERROR;
-//     }
+    // check if there is space in storage
+    int fd = findFreeFD();
+    if (fd == -1)
+    {
+        return ERROR;
+    }
 
-//     // check if there is space in storage
-//     int fd = findFreeFD();
-//     if (fd == -1)
-//     {
-//         return ERROR;
-//     }
+    fd_arr[fd]->used = 1;
+    fd_arr[fd]->cur_pos = 0;
 
-//     struct file *new_file;
-//     new_file = getFilePtr(pathname);
-//     if (new_file == NULL) {
-//         TracePrintf(1, "Create: unable to open file.\n");
-//         return ERROR
-//     }
-//     fd_arr[fd]->used = 1;
-//     fd_arr[fd]->file = new_file;
-//     fd_arr[fd]->cur_pos = 0;
-//     fd_arr[fd]->inode_num = 0;
+    container->data = fd;
+    Send(container, -FILE_SERVER);
+    fd_arr[fd]->inode_num = container->data;
+    TracePrintf(0, "Create: inode num %d set.\n", fd_arr[fd]->inode_num);
 
-
-//     container->data = fd;
-//     Send((void *)&container, -FILE_SERVER);
-//     TracePrintf(0, "Open: message sent.\n");
-//     return 0;
-// }
+    TracePrintf(0, "Create: message sent.\n");
+    return 0;
+}
 
 // int Read(int fd, void *buf, int size) {
 //     TracePrintf(0, "Create function called from iolib!\n");
