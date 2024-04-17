@@ -55,26 +55,48 @@ int main()
     // Close(fd);
 
     // TEST: Open files
+    // int fd1;
+    // int fd2;
+    // int fd3;
+
+    // fd1 = Create("a");
+    // TracePrintf(0, "DONE: fd %d\n", fd1);
+    // fd2 = Create("b");
+    // TracePrintf(0, "DONE: fd %d\n", fd2);
+    // fd3 = Create("c");
+    // TracePrintf(0, "DONE: fd %d\n", fd3);
+
+    // Close(fd1);
+    // Close(fd2);
+    // Close(fd3);
+
+    // fd1 = Open("a");
+    // TracePrintf(0, "DONE: fd %d\n", fd1);
+    // fd1 = Open("b");
+    // TracePrintf(0, "DONE: fd %d\n", fd1);
+    // fd1 = Open("c");
+    // TracePrintf(0, "DONE: fd %d\n", fd1);
+
+    // TEST: Open files
     int fd1;
     int fd2;
-    int fd3;
-    int fd4;
 
-    fd1 = Create("a");
+    MkDir("/testing");
+    MkDir("/testing/test");
+
+    fd1 = Create("/testing/a");
     TracePrintf(0, "DONE: fd %d\n", fd1);
-    
-    fd2 = Create("b");
+
+    fd2 = Create("/testing/test/b");
     TracePrintf(0, "DONE: fd %d\n", fd2);
-    
-    Close(fd);
 
-    fd3 = Create("c");
-    TracePrintf(0, "DONE: fd %d\n", fd3);
+    Close(fd1);
+    Close(fd2);
 
-
-    fd4 = Open("a");
-    TracePrintf(0, "DONE: fd %d\n", fd4);
-
+    fd1 = Open("/testing/a");
+    TracePrintf(0, "DONE: fd %d\n", fd1);
+    fd2 = Open("/testing/test/b");
+    TracePrintf(0, "DONE: fd %d\n", fd2);
 
     // void *buf = malloc(sizeof(char) * 10);
     // Read(0, buf, sizeof(char) * 10);
