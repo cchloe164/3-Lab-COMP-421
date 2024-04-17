@@ -218,13 +218,15 @@ int main(int argc, char** argv) {
 }
 
 void openHandler(struct msg *message, int sender_pid) {
-    TracePrintf(0, "Received pathname %s\tcur dir %d\tpid %d\n", message->ptr, message->data, sender_pid);
-    if (checkPath(message) == ERROR) {
+    TracePrintf(0, "Received pathname %s\tcur dir %d\tpid %d\n", message->content, message->data, sender_pid);
+    int inum = checkPath(message);
+    if (inum == ERROR)
+    {
         replyError(message, sender_pid);
-    } else {
-        int new_cur_dir = findParent(message->ptr, message->data);
-        message->data = new_cur_dir;
-        Reply(message, sender_pid);
+    }
+    else
+    {
+        replyWithInodeNum(message, sender_pid, inum);
     }
 };
 

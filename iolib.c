@@ -40,15 +40,9 @@ int open_files = 0;
 int init_storage = 0;
 
 int current_directory = ROOTINODE;
-// struct file {
-//     int open;   // is this file open? 0 if no, and 1 if yes.
-//     char *pathname;
-//     FILE *fptr;
-// };
 
 struct fd {
     int used; // 0 if free, 1 if in use
-    // struct file *file;
     int cur_pos;  // current position inside file
     int inode_num;  // inode number of file
 };
@@ -72,10 +66,6 @@ void initFileStorage() {
     TracePrintf(0, "Initializing file storage!\n");
     int fd;
     for (fd = 0; fd < MAX_OPEN_FILES; fd++) {
-        // struct file new_file;
-        // new_file.open = 0;
-        // file_arr[fd] = &new_file;
-
         struct fd *new_fd = malloc(sizeof(struct fd));
         new_fd->used = 0;
         new_fd->cur_pos = 0;
@@ -97,58 +87,6 @@ int findFreeFD() {
     return -1;
 }
 
-// /**
-//  * Return pointer to file data structure.
-// */
-// struct file *getFilePtr(char *pathname) {
-//     int i;
-//     for (i = 0; i < MAX_OPEN_FILES; i++) {
-//         if (file_arr[i]->pathname == pathname && file_arr[i]->open == 1)
-//         { 
-//             TracePrintf(1, "getFilePtr: file is already opened.\n");
-//             // return file_arr[fd]; //changed this index from "fd" to "i"
-//             return file_arr[i];
-//         }
-//     }
-
-//     if (open_files >= MAX_OPEN_FILES) {
-//         TracePrintf(1, "getFilePtr: max # of open files reached.\n");
-//         return NULL;
-//     }
-    
-//     FILE *new_fptr = fopen(pathname, "r+");
-//     if (new_fptr == NULL)
-//     {
-//         TracePrintf(1, "getFilePtr: file does not exist.\n");
-//         return NULL;
-//     } else {
-//         // find empty slot on file storage
-//         // already checked earlier, guaranteed to have at least 1 free slot
-//         for (i = 0; i < MAX_OPEN_FILES; i ++) {
-//             if (file_arr[i]->open == 0) {
-//                 file_arr[i]->pathname = pathname;
-//                 file_arr[i]->fptr = new_fptr;
-//                 open_files++;
-//                 return file_arr[i];
-//             }
-//         }
-
-//         TracePrintf(1, "getFilePtr: logic should not reach here.\n");
-//         return NULL;
-//     }
-// }
-
-// /**
-//  * Reset given file descriptor to be free.
-// */
-// void resetFile(struct file *file) {
-//     file_arr->used = 0;
-//     file_arr->pathname = "";
-//     file_arr->ftpr = 0;
-//     file_arr->is_file = -1;
-//     file_arr->cur_pos = 0;
-//     file_arr->inode_num = -1;
-// }
 
 /**
  * This request opens the file named by pathname.

@@ -5,46 +5,83 @@ YFS      Initializing the free blocks and inodes
 YFS      there are 47 inodes total in the fs
 YFS      Setting up the freeBlocks as default free
 YFS      Server listening for message 
-User     CREATEing pathname \a...
+User     CREATEing pathname a...
 User     Initializing file storage!
 User     findFreeFD: free spot 0 found in file storage.
 YFS      Server received message signal! ID 3
-YFS      Received message contents: type: 2	data: 1	content: \a
+YFS      Received message contents: type: 2	data: 1	content: a
 YFS      Received CREATE message type
-YFS      Create: pathname \a
-YFS      finding parent inode in string \a
+YFS      Create: pathname a
+YFS      finding parent inode in string a
 YFS      we are pathfinding from the current directory
 YFS      Found free block 8
 YFS      Server listening for message 
 User     Create: inode num 2 set.
 User     Create: success.
 User     DONE: fd 0
-User     CREATEing pathname b...
-User     findFreeFD: free spot 1 found in file storage.
+User     CLOSEing fd 0...
+User     OPENing file a...
+User     findFreeFD: free spot 0 found in file storage.
 YFS      Server received message signal! ID 3
-YFS      Received message contents: type: 2	data: 1	content: b
-YFS      Received CREATE message type
-YFS      Create: pathname b
-YFS      finding parent inode in string b
+YFS      Received message contents: type: 0	data: 1	content: a
+YFS      Received OPEN message type
+YFS      Received pathname a	cur dir 1	pid 3
+YFS      finding parent inode in string a
 YFS      we are pathfinding from the current directory
-YFS      Found free block 9
 YFS      Server listening for message 
-User     Create: inode num 3 set.
-User     Create: success.
-User     DONE: fd 1
-User     CREATEing pathname \c...
-User     findFreeFD: free spot 2 found in file storage.
-YFS      Server received message signal! ID 3
-YFS      Received message contents: type: 2	data: 1	content: \c
-YFS      Received CREATE message type
-YFS      Create: pathname \c
-YFS      finding parent inode in string \c
-YFS      we are pathfinding from the current directory
-YFS      Found free block 10
+User     Open: inode num 2 set.
+User     Open: success.
+User     DONE: fd 0
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
 YFS      Server listening for message 
-User     Create: inode num 4 set.
-User     Create: success.
-User     DONE: fd 2
 YFS      Server received blocking message! All processes were listening.
 YFS      Server listening for message 
 YFS      Server received blocking message! All processes were listening.
@@ -1955,3 +1992,10 @@ YFS      Server received blocking message! All processes were listening.
 YFS      Server listening for message 
 YFS      Server received blocking message! All processes were listening.
 YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
