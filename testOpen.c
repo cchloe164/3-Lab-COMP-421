@@ -10,10 +10,15 @@
 int main()
 {
     // TracePrintf(0, "Making new directory...\n");
-    initFileStorage();
     // Dummy("testing");
-    Create("a");
-    Open("a");
+    int fd;
+
+    fd = Create("\\a");
+    TracePrintf(0, "DONE: fd %d\n", fd);
+    fd = Create("b");
+    TracePrintf(0, "DONE: fd %d\n", fd);
+    fd = Create("\\c");
+    TracePrintf(0, "DONE: fd %d\n", fd);
     // void *buf = malloc(sizeof(char) * 10);
     // Read(0, buf, sizeof(char) * 10);
     // struct Stat *buf = malloc(sizeof(struct Stat));

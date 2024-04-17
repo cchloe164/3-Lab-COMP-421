@@ -157,7 +157,8 @@ int main(int argc, char** argv) {
 
                 //TODO: create a message type, encode the library codes in one of the fields, and call handlers?
                 int type = message->type;
-                TracePrintf(0, "Received message type %d\n", type);
+                TracePrintf(0, "Received message contents: type: %d\tdata: %d\tcontent: %s\n", type, message->data, message->content);
+                // TracePrintf(0, "pathname: %s\n", message->ptr);
                 switch(type) {
                     case NONE: {
                         TracePrintf(0, "Received NONE message type\n");
@@ -218,7 +219,6 @@ int main(int argc, char** argv) {
 
 void openHandler(struct msg *message, int sender_pid) {
     TracePrintf(0, "Received pathname %s\tcur dir %d\tpid %d\n", message->ptr, message->data, sender_pid);
-    int res = checkPath(message);
     if (checkPath(message) == ERROR) {
         replyError(message, sender_pid);
     } else {
@@ -228,6 +228,14 @@ void openHandler(struct msg *message, int sender_pid) {
     }
 };
 
+// void prtString(char *string) {
+//     TracePrintf(0, "length: %d\n", sizeof(string) / sizeof(char));
+//     while (string != '\0'){
+//         TracePrintf(0, "%c", string);
+//         string++;
+//     }
+// }
+
 /**
     Creates a new directory entry with an empty inode at the end, name from the message. Copied from mkDirHandler, changed the node type created (it's now a INODE_REGULAR)
 */
@@ -236,11 +244,12 @@ void createHandler(struct msg *message, int senderPid) {
         //gotta go down the inodes from the root until you get to the parent directory, then add a new struct directory to the inode and increment size
     //also update the parent inode size
     char *path = message->content;
+    TracePrintf(0, "Create: pathname %s\n", path);
     int curr_directory = message->data;
     int parent_inode_num = findParent(path, curr_directory);
     if (parent_inode_num == ERROR) {
         //handle error here
-        TracePrintf(0, "Error finding parent_inode num in createHandler\n");
+        TracePrintf(0, "Create: Error finding parent_inode num in createHandler\n");
         replyError(message, senderPid);
         // Reply(message, senderPid); 
         return;
@@ -248,16 +257,16 @@ void createHandler(struct msg *message, int senderPid) {
     struct inode *parentInode = malloc(sizeof(struct inode));
     if (readInode(parent_inode_num, parentInode) == ERROR) {
         //handler error here
-        TracePrintf(0, "Error reading parent_inode in createHandler\n");
+        TracePrintf(0, "Create: Error reading parent_inode in createHandler\n");
         replyError(message, senderPid);
         return;
     }
     // TracePrintf(1, "We are here1\n");
-    TracePrintf(1, "parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
+    TracePrintf(1, "Create: parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
 
     // next logic: search for the last entry in the dir to see if it exists. if it does, then return error.
-    if (parentInode->type != INODE_DIRECTORY) { 
-        TracePrintf(0, "parent inode %i is not a directory\n", parent_inode_num);
+    if (parentInode->type != INODE_DIRECTORY) {
+        TracePrintf(0, "Create: parent inode %i is not a directory\n", parent_inode_num);
         replyError(message, senderPid);
         return;
     }
@@ -265,21 +274,21 @@ void createHandler(struct msg *message, int senderPid) {
 
     int matching_inode = findDirectoryEntry(parentInode, parent_inode_num, new_directory_name);
     if (matching_inode != ERROR) {
-        TracePrintf(0, "directory %s already exists in inode %i. \n", new_directory_name, parent_inode_num);
+        TracePrintf(0, "Create: directory %s already exists in inode %i. \n", new_directory_name, parent_inode_num);
         replyError(message, senderPid);
         return;
     }
     
     // TracePrintf(1, "We are here4\n");
     int new_inode_num = getFreeInode();
-    TracePrintf(1, "Setting new inode %i with type %i and parent %i\n", new_inode_num, INODE_DIRECTORY, parent_inode_num);
+    TracePrintf(1, "Create: Setting new inode %i with type %i and parent %i\n", new_inode_num, INODE_DIRECTORY, parent_inode_num);
     setNewInode(new_inode_num, INODE_REGULAR, 1, 0, 0, parent_inode_num); //TODO: change this -1
     // TracePrintf(1, "We are here6\n");
     writeDirectoryToInode(parentInode, parent_inode_num, new_inode_num, new_directory_name);
     // entry->name = findLastDirName(path);
     //update parent
     writeInodeToDisk(parent_inode_num, parentInode);
-    TracePrintf(1, "parent is inode number %i with inode type %i and size %i", parent_inode_num, parentInode->type, parentInode->size);
+    TracePrintf(1, "Create: parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
     replyWithInodeNum(message, senderPid, new_inode_num);
 }
 
@@ -1110,7 +1119,8 @@ int findParent(char *name, int curr_directory) {
         }
         curr_inode_num = ROOTINODE;
     } else {
-        TracePrintf(0, "TODO in pathfinder: replace lines here with current directory\n");
+        // TracePrintf(0, "TODO in pathfinder: replace lines here with current directory\n");
+        TracePrintf(0, "we are pathfinding from the current directory\n");
         // return -1;
         int read_s = readInode(curr_directory, curr_inode);
         curr_inode_num = curr_directory;

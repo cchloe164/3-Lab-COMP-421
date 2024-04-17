@@ -166,9 +166,9 @@ int Open(char *pathname) {
     }
 
     fd_arr[fd]->used = 1; 
-    fd_arr[fd]->cur_pos = 0; 
-    
-    container->ptr = (void *) pathname;
+    fd_arr[fd]->cur_pos = 0;
+
+    strcpy(container->content, pathname);
     container->data = current_directory;
     Send(container, -FILE_SERVER); // blocked here waiting for reply
     if (container->data == ERMSG) {
@@ -180,7 +180,7 @@ int Open(char *pathname) {
 
     free(container);
     TracePrintf(0, "Open: success.\n");
-    return 0;
+    return fd;
 }
 
 /**
@@ -198,7 +198,6 @@ int Close(int fd) {
     { // close file
         fd_arr[fd]->used = 0;
         open_files--;
-
         return 0;
     }
 }
@@ -211,6 +210,7 @@ int Create(char *pathname) {
 
     if (init_storage == 0) {
         initFileStorage();
+        init_storage = 1;
     }
 
     // build message
@@ -227,7 +227,7 @@ int Create(char *pathname) {
     fd_arr[fd]->used = 1;
     fd_arr[fd]->cur_pos = 0;
 
-    container->ptr = (void *)pathname;
+    strcpy(container->content, pathname);
     container->data = current_directory;
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG) {
@@ -238,7 +238,7 @@ int Create(char *pathname) {
 
     free(container);
     TracePrintf(0, "Create: success.\n");
-    return 0;
+    return fd;
 }
 
 
@@ -320,7 +320,6 @@ int Dummy(char *path) { //used to send a dummy message
 }
 
 int MkDir(char *path) { //used to send a dummy message
-    TracePrintf(0, "MkDir: message sending.\n");
     struct msg *container = malloc(sizeof(struct msg));//TODO: malloc here?
     // TracePrintf(0, "testset2\n");
     container->type = MKDIR;
@@ -332,7 +331,8 @@ int MkDir(char *path) { //used to send a dummy message
     // TracePrintf(0, "testset2\n");
     Send(container, -FILE_SERVER);
     if (container->type == REPLYMSG) {
-        TracePrintf(0, container->content);
+        // TracePrintf(0, container->content);
+        TracePrintf(0, "MkDir: success.\n");
         free(container);
         return 0;
     } else if (container->type == ERMSG) {
@@ -354,7 +354,7 @@ int RmDir(char *pathname) {
     struct msg *container = malloc(sizeof(struct msg));
     container->type = RMDIR;
     container->data = current_directory;
-    container->ptr = pathname;
+    strcpy(container->content, pathname);
 
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG)
@@ -373,7 +373,7 @@ int ChDir(char *pathname) {
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = CHDIR;
-    container->ptr = pathname;
+    strcpy(container->content, pathname);
 
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG)
@@ -393,7 +393,7 @@ int Stat(char *pathname, struct Stat *statbuf) {
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = STAT;
-    container->ptr = pathname;
+    strcpy(container->content, pathname);
 
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG)
