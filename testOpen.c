@@ -12,7 +12,7 @@ int main()
     // TracePrintf(0, "Making new directory...\n");
     initFileStorage();
     Dummy("testing");
-    Close(10);
+    Open("a");
 
     return (0);
 }

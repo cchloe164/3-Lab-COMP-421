@@ -159,7 +159,7 @@ int main(int argc, char** argv) {
                 //TODO: create a message type, encode the library codes in one of the fields, and call handlers?
                 int type = message->type;
                 TracePrintf(0, "Received message type %d\n", type);
-                TracePrintf(0, "Received message content %s\n", message->content);
+                TracePrintf(0, "Received message content %s\n", (char *)message->content);
                 switch(type) {
                     case NONE: {
                         TracePrintf(0, "Received NONE message type\n");
