@@ -77,31 +77,70 @@ int main()
     // fd1 = Open("c");
     // TracePrintf(0, "DONE: fd %d\n", fd1);
 
-    // TEST: Open files
-    int fd1;
-    int fd2;
+    // // TEST: Open files
+    // int fd1;
+    // int fd2;
 
-    MkDir("/testing");
-    MkDir("/testing/test");
+    // MkDir("/testing");
+    // MkDir("/testing/test");
 
-    fd1 = Create("/testing/a");
-    TracePrintf(0, "DONE: fd %d\n", fd1);
+    // fd1 = Create("/testing/a");
+    // TracePrintf(0, "DONE: fd %d\n", fd1);
 
-    fd2 = Create("/testing/test/b");
-    TracePrintf(0, "DONE: fd %d\n", fd2);
+    // fd2 = Create("/testing/test/b");
+    // TracePrintf(0, "DONE: fd %d\n", fd2);
 
-    Close(fd1);
-    Close(fd2);
+    // Close(fd1);
+    // Close(fd2);
 
-    fd1 = Open("/testing/a");
-    TracePrintf(0, "DONE: fd %d\n", fd1);
-    fd2 = Open("/testing/test/b");
-    TracePrintf(0, "DONE: fd %d\n", fd2);
+    // fd1 = Open("/testing/a");
+    // TracePrintf(0, "DONE: fd %d\n", fd1);
+    // fd2 = Open("/testing/test/b");
+    // TracePrintf(0, "DONE: fd %d\n", fd2);
+
+    // TEST: Stat one file
+    // int fd;
+
+    // fd = Create("a");
+    // TracePrintf(0, "DONE: fd %d\n", fd);
+
+    // struct Stat *buf = malloc(sizeof(struct Stat));
+    // int res = Stat("a", buf);
+    // TracePrintf(0, "res %d\n", res);
+    // TracePrintf(0, "STATS\tinum=%d\ttype=%d\tsize=%d\tnlink=%d\n", buf->inum, buf->type, buf->size, buf->nlink);
+
+    // TEST: Stat nested file.
+    // MkDir("/testing");
+
+    // int fd;
+    // fd = Create("/testing/a");
+    // TracePrintf(0, "DONE: fd %d\n", fd);
+
+    // struct Stat *buf = malloc(sizeof(struct Stat));
+    // int res = Stat("/testing/a", buf);
+    // TracePrintf(0, "res %d\n", res);
+    // TracePrintf(0, "STATS\tinum=%d\ttype=%d\tsize=%d\tnlink=%d\n", buf->inum, buf->type, buf->size, buf->nlink);
+
+    // TEST: change to child directory
+    // TEST: change to parent directory
+    // TEST: change to grandchild directory
+    // TEST: change to grandparent directory
+    // MkDir("/a");
+    // ChDir("/a");
+    // ChDir("..");
+    // MkDir("/a/b");
+    // ChDir("/a/b");
+    // ChDir("../..");
+
+    // TEST: duplicate directories after changing directories
+    MkDir("/a");
+    ChDir("/a");
+    MkDir("b");
+    ChDir("..");
+    MkDir("/a/b");
 
     // void *buf = malloc(sizeof(char) * 10);
     // Read(0, buf, sizeof(char) * 10);
-    // struct Stat *buf = malloc(sizeof(struct Stat));
-    // Stat("a", buf);
     // ChDir("q");
     // RmDir("q");
 

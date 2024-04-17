@@ -230,14 +230,6 @@ void openHandler(struct msg *message, int sender_pid) {
     }
 };
 
-// void prtString(char *string) {
-//     TracePrintf(0, "length: %d\n", sizeof(string) / sizeof(char));
-//     while (string != '\0'){
-//         TracePrintf(0, "%c", string);
-//         string++;
-//     }
-// }
-
 /**
     Creates a new directory entry with an empty inode at the end, name from the message. Copied from mkDirHandler, changed the node type created (it's now a INODE_REGULAR)
 */
@@ -407,6 +399,27 @@ Basically checks the path and returns the directory inode at the end of the path
 */
 
 void chDirHandler(struct msg *message, int senderPid) {
+    // // Chloe's fanangling:
+    // if (strcmp(path, ".")) { // going up to parent
+    //     replyWithInodeNum(message, senderPid, inode_num);
+    // } else if (strcmp(path, "..")) {
+
+    // } else {
+    //     int inode_num = checkPath(message);
+    //     if (inode_num == ERROR) { //error reaching directory or directory does not exist
+    //         replyError(message, senderPid);
+    //     } else { //gotta check if it is a directory type
+    //         void *buf = malloc(sizeof(struct inode));
+    //         readInode(inode_num, buf);
+    //         struct inode *node = (struct inode *)buf;
+    //         if (node->type == INODE_DIRECTORY) {
+    //             replyWithInodeNum(message, senderPid, inode_num);
+    //         } else {
+    //             replyError(message, senderPid);
+    //         }
+    //     }
+    // }
+
     int inode_num = checkPath(message);
     if (inode_num == ERROR) { //error reaching directory or directory does not exist
         replyError(message, senderPid);
@@ -445,7 +458,7 @@ void mkDirHandler(struct msg *message, int senderPid) {
         return;
     }
     // TracePrintf(1, "We are here1\n");
-    TracePrintf(1, "parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
+    TracePrintf(0, "parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
 
     // next logic: search for the last entry in the dir to see if it exists. if it does, then return error.
     if (parentInode->type != INODE_DIRECTORY) {
@@ -649,6 +662,9 @@ int checkPath(struct msg *message) {
         // Reply(message, senderPid); 
         return -1;
     }
+
+    
+
     struct inode *parentInode = malloc(sizeof(struct inode));
     if (readInode(parent_inode_num, parentInode) == ERROR) {
         //handler error here
@@ -1220,9 +1236,6 @@ int findParent(char *name, int curr_directory) {
 
     }
     TracePrintf(1, "Complete path found!\n");
-    //TODO: FREE EVERYTHING
-    // free(block);
-    // free(indirect_block);
     return curr_inode_num;
 }
 /**

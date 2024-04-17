@@ -269,7 +269,7 @@ int MkDir(char *path) { //used to send a dummy message
     // TracePrintf(0, "testset2\n");
     Send(container, -FILE_SERVER);
     if (container->type == REPLYMSG) {
-        // TracePrintf(0, container->content);
+        TracePrintf(0, "MkDir: made directory %s\n", container->content);
         TracePrintf(0, "MkDir: success.\n");
         free(container);
         return 0;
@@ -319,6 +319,7 @@ int ChDir(char *pathname) {
         return ERROR;
     }
     current_directory = container->data;    // update cur_dir to new directory
+    TracePrintf(0, "ChDir: changing to directory %d\n", current_directory);
 
     free(container);
     TracePrintf(0, "ChDir: success.\n");
@@ -331,6 +332,7 @@ int Stat(char *pathname, struct Stat *statbuf) {
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = STAT;
+    container->data = current_directory;
     strcpy(container->content, pathname);
 
     Send(container, -FILE_SERVER);
