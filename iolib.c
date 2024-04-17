@@ -347,10 +347,26 @@ int MkDir(char *path) { //used to send a dummy message
 // int RmDir(char *) {
 //     return 0;
 // }
-// int ChDir(char *) {
-//     pathname
-//     return 0;
-// }
+int ChDir(char *pathname) {
+    TracePrintf(0, "CHDIRing pathname %s...\n", pathname);
+
+    // build message
+    struct msg *container = malloc(sizeof(struct msg));
+    container->type = CHDIR;
+    container->ptr = pathname;
+
+    Send(container, -FILE_SERVER);
+    if (container->data == ERMSG)
+    {
+        return ERROR;
+    }
+    current_directory = container->data;    // update cur_dir to new directory
+
+    free(container);
+    TracePrintf(0, "ChDir: success.\n");
+    return 0;
+}
+
 int Stat(char *pathname, struct Stat *statbuf) {
     TracePrintf(0, "STATing pathname %s...\n", pathname);
 

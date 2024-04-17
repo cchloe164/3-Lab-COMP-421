@@ -14,11 +14,11 @@ YFS      Received message type 50
 YFS      Received DUMMY message type
 YFS      Server listening for message 
 User     Hello
-User     STATing pathname a...
+User     CHDIRing pathname q...
 YFS      Server received message signal! ID 3
-YFS      Received message type 13
-YFS      Received STAT message type
-YFS      finding parent inode in string â«ËT
+YFS      Received message type 12
+YFS      Received CHDIR message type
+YFS      finding parent inode in string 
 YFS      TODO in pathfinder: replace lines here with current directory
 YFS      error reading relative inode in path validation
 YFS      Error finding parent_inode num in checkpath
@@ -704,3 +704,384 @@ YFS      Server listening for message
 YFS      Server received blocking message! All processes were listening.
 YFS      Server listening for message 
 YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
+YFS      Server received blocking message! All processes were listening.
+YFS      Server listening for message 
