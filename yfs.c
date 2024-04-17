@@ -218,22 +218,14 @@ int main(int argc, char** argv) {
 
 void openHandler(struct msg *message, int sender_pid) {
     TracePrintf(0, "Received pathname %s\tcur dir %d\tpid %d\n", message->ptr, message->data, sender_pid);
-    // char *pathname = message->ptr;
-    // int cur_dir = message->data;
-
-    // int parent_dir_inode = findParent(pathname, cur_dir);
-    // void *buf = malloc(sizeof(struct node));
-    // int res = readInode(parent_dir_inode, buf)
-    // if (res == 0) {
-    //     TracePrintf(1, "openHandler: error reading inode %d\n", parent_dir_inode);
-    //     Reply()
-    //     return
-    // }
-    // findDirectoryEntry()
-    message->data = 10;
-    Reply(message, sender_pid);
-    (void) message;
-    (void) sender_pid;
+    int res = checkPath(message);
+    if (checkPath(message) == ERROR) {
+        replyError(message, sender_pid);
+    } else {
+        int new_cur_dir = findParent(message->ptr, message->data);
+        message->data = new_cur_dir;
+        Reply(message, sender_pid);
+    }
 };
 
 /**

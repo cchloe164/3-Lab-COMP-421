@@ -11,14 +11,15 @@ int main()
 {
     // TracePrintf(0, "Making new directory...\n");
     initFileStorage();
-    Dummy("testing");
-    // Open("a");
-    // Create("a");
+    // Dummy("testing");
+    Create("a");
+    Open("a");
     // void *buf = malloc(sizeof(char) * 10);
     // Read(0, buf, sizeof(char) * 10);
     // struct Stat *buf = malloc(sizeof(struct Stat));
     // Stat("a", buf);
-    ChDir("q");
+    // ChDir("q");
+    // RmDir("q");
 
     return (0);
 }
