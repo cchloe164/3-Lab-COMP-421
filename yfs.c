@@ -399,27 +399,6 @@ Basically checks the path and returns the directory inode at the end of the path
 */
 
 void chDirHandler(struct msg *message, int senderPid) {
-    // // Chloe's fanangling:
-    // if (strcmp(path, ".")) { // going up to parent
-    //     replyWithInodeNum(message, senderPid, inode_num);
-    // } else if (strcmp(path, "..")) {
-
-    // } else {
-    //     int inode_num = checkPath(message);
-    //     if (inode_num == ERROR) { //error reaching directory or directory does not exist
-    //         replyError(message, senderPid);
-    //     } else { //gotta check if it is a directory type
-    //         void *buf = malloc(sizeof(struct inode));
-    //         readInode(inode_num, buf);
-    //         struct inode *node = (struct inode *)buf;
-    //         if (node->type == INODE_DIRECTORY) {
-    //             replyWithInodeNum(message, senderPid, inode_num);
-    //         } else {
-    //             replyError(message, senderPid);
-    //         }
-    //     }
-    // }
-
     int inode_num = checkPath(message);
     if (inode_num == ERROR) { //error reaching directory or directory does not exist
         replyError(message, senderPid);
@@ -655,6 +634,34 @@ int checkPath(struct msg *message) {
     //gotta go down the inodes from the root until you get to the parent directory
     char *path = message->content;
     int curr_directory = message->data;
+
+    // Chloe's fanangling:
+    if (strcmp(".", path) == 0) {   // stay in current directory
+        TracePrintf(0, "checkPath: Stay in current directory\n");
+        return curr_directory;
+    }
+
+    if (strcmp("..", path) == 0) {
+        // TracePrintf(0, "checkPath: Go to parent file\n");
+        // struct inode *curr_inode = malloc(sizeof(struct inode));
+        // int read_s = readInode(curr_directory, curr_inode);
+        // if (read_s == ERROR)
+        // {
+        //     TracePrintf(0, "checkPath: ERROR reading current node\n");
+        //     return ERROR;
+        // }
+        // int block_num = curr_inode->direct[0];  // parent stored in 2nd dir entry
+        // void *block = malloc(BLOCKSIZE);
+        // int readStatus = readBlock(block_num, block); // read the block into memory
+        // if (readStatus == ERROR)
+        // {
+        //     TracePrintf(0, "Error reading a subBlock in path validation\n");
+        //     return ERROR;
+        // }
+        // struct dir_entry *entry = (struct dir_entry *)block;
+
+    }
+
     int parent_inode_num = findParent(path, curr_directory);
     if (parent_inode_num == ERROR) {
         //handle error here
@@ -662,8 +669,6 @@ int checkPath(struct msg *message) {
         // Reply(message, senderPid); 
         return -1;
     }
-
-    
 
     struct inode *parentInode = malloc(sizeof(struct inode));
     if (readInode(parent_inode_num, parentInode) == ERROR) {
@@ -1206,9 +1211,9 @@ int findParent(char *name, int curr_directory) {
             }
             int readStatus = readBlock(block_num, block); //read the block into memory
             if (readStatus == ERROR) {
-                    TracePrintf(0, "Error reading a subBlock in path validation\n");
-                    return ERROR;
-                }
+                TracePrintf(0, "Error reading a subBlock in path validation\n");
+                return ERROR;
+            }
             current_entry = (struct dir_entry *)block; // start at the first entry
             int entries;
             for (entries = 0; entries < entries_to_traverse_in_block; entries++) {

@@ -133,11 +133,12 @@ int main()
     // ChDir("../..");
 
     // TEST: duplicate directories after changing directories
-    MkDir("/a");
-    ChDir("/a");
-    MkDir("b");
-    ChDir("..");
-    MkDir("/a/b");
+    // MkDir("/a");
+    // ChDir("/a");
+    // MkDir("b");
+    // ChDir("..");
+    // MkDir("/a/b");
+    ChDir(".");
 
     // void *buf = malloc(sizeof(char) * 10);
     // Read(0, buf, sizeof(char) * 10);

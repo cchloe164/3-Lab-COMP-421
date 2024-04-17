@@ -306,11 +306,12 @@ int RmDir(char *pathname) {
 }
 
 int ChDir(char *pathname) {
-    TracePrintf(0, "CHDIRing pathname %s...\n", pathname);
+    TracePrintf(0, "CHDIRing pathname '%s'...\n", pathname);
 
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = CHDIR;
+    container->data = current_directory;
     strcpy(container->content, pathname);
 
     Send(container, -FILE_SERVER);
