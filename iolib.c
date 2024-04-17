@@ -154,7 +154,7 @@ int findFreeFD() {
  * This request opens the file named by pathname.
 */
 int Open(char *pathname) {
-    TracePrintf(0, "iolib OPENing file %s...\n", pathname);
+    TracePrintf(0, "OPENing file %s...\n", pathname);
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = OPEN;
@@ -188,7 +188,7 @@ int Open(char *pathname) {
  * number of a file currently open in this process, this request returns ERROR; otherwise, it returns 0
 */
 int Close(int fd) {
-    TracePrintf(0, "iolib CLOSEing fd %d...\n", fd);
+    TracePrintf(0, "CLOSEing fd %d...\n", fd);
     if (fd_arr[fd]->used == 0)
     { // file is not open
         TracePrintf(0, "Close: file is not open.\n");
@@ -207,7 +207,7 @@ int Close(int fd) {
  * This request creates and opens the new file named pathname .
  */
 int Create(char *pathname) {
-    TracePrintf(0, "iolib CREATEing pathname %s...\n", pathname);
+    TracePrintf(0, "CREATEing pathname %s...\n", pathname);
 
     if (init_storage == 0) {
         initFileStorage();
@@ -244,7 +244,7 @@ int Create(char *pathname) {
 
 
 int Read(int fd, void *buf, int size) {
-    TracePrintf(0, "iolib READing fd %d...\n", fd);
+    TracePrintf(0, "READing fd %d...\n", fd);
     if (fd_arr[fd]->used == 0) {
         TracePrintf(0, "Read: file not open.\n");
         return ERROR;
@@ -272,7 +272,7 @@ int Read(int fd, void *buf, int size) {
 }
 
 int Write(int fd, void *buf, int size) {
-    TracePrintf(0, "iolib WRITEing fd %d...\n", fd);
+    TracePrintf(0, "WRITEing fd %d...\n", fd);
     if (fd_arr[fd]->used == 0)
     {
         TracePrintf(0, "Write: file not open.\n");
@@ -331,23 +331,50 @@ int MkDir(char *path) { //used to send a dummy message
     Send(container, -FILE_SERVER);
     if (container->type == REPLYMSG) {
         TracePrintf(0, container->content);
+        free(container);
+        return 0;
     } else if (container->type == ERMSG) {
         TracePrintf(0, "Error making directory \n");
-        return -1;
+        free(container);
+        return ERROR;
+    } else {
+        TracePrintf(0, "MkDir: should not reach this point.\n");
+        return ERROR;
     }
     
     // (void) path;
-    return 0;
 }
 // int RmDir(char *) {
 //     return 0;
 // }
 // int ChDir(char *) {
+//     pathname
 //     return 0;
 // }
-// int Stat(char *, struct Stat *) {
-//     return 0;
-// }
+int Stat(char *pathname, struct Stat *statbuf) {
+    TracePrintf(0, "STATing pathname %s...\n", pathname);
+
+    // build message
+    struct msg *container = malloc(sizeof(struct msg));
+    container->type = STAT;
+    container->ptr = pathname;
+
+    Send(container, -FILE_SERVER);
+    if (container->data == ERMSG)
+    {
+        return ERROR;
+    }
+    struct Stat *res = (struct Stat *)container->content;
+    statbuf->inum = res->inum;
+    statbuf->type = res->type;
+    statbuf->size = res->size;
+    statbuf->nlink = res->nlink;
+
+    free(container);
+    TracePrintf(0, "Stat: success.\n");
+    return 0;
+}
+
 // int Sync(void) {
 //     return 0;
 // }
