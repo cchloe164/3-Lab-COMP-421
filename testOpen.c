@@ -140,10 +140,18 @@ int main()
     // MkDir("/a/b");
     // ChDir(".");
 
+    // TEST: write to a file
+    int fd;
+    fd = Create("a");
+    TracePrintf(0, "DONE: fd %d\n", fd);
+
+    char *buf = "string";
+    int size = sizeof("string");
+    int written = Write(fd, (void *)buf, size);
+    TracePrintf(0, "DONE: written %d\n", written);
+
     // void *buf = malloc(sizeof(char) * 10);
     // Read(0, buf, sizeof(char) * 10);
-    // ChDir("q");
-    // RmDir("q");
 
     return (0);
 }
