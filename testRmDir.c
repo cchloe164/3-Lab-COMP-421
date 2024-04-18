@@ -22,6 +22,7 @@ main()
     RmDir("/testing/test3");
     RmDir("/testing/test3"); //should fail
     RmDir("/testing"); //should fail
+    RmDir("/testing/test2"); //should fail (current directory)
     ChDir("/testing/test3"); //should also fail
 
 
