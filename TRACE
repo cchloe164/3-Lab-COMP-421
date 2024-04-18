@@ -1,124 +1,57 @@
 ** User     level 5 tracing enabled **
-** YFS      level 1 tracing enabled **
-YFS      Running main in server!
-YFS      Initializing the free blocks and inodes
-YFS      Reading the fs Header
-YFS      there are 47 inodes total in the fs
-YFS      Setting up the freeBlocks as default free
-YFS      There are 8 nodes to read
-YFS      Reading inode block 1
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      There are 8 nodes to read
-YFS      Reading inode block 2
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      There are 8 nodes to read
-YFS      Reading inode block 3
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      There are 8 nodes to read
-YFS      Reading inode block 4
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      There are 8 nodes to read
-YFS      Reading inode block 5
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      There are 7 nodes to read
-YFS      Reading inode block 6
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Found a free inode!
-YFS      Pushing free inode to waiting queue!
-YFS      Server listening for message 
 User     dummy: message sending.
 User     testset2
 User     testset2
-YFS      Server received message signal! ID 3
-YFS      Received message contents: type: 50	data: 0	content: 
-YFS      Received DUMMY message type
-YFS      Server listening for message 
 User     Hello
-User     Dummy: sending old path string1 and new path string2
-YFS      Server received message signal! ID 3
-YFS      Received message contents: type: 51	data: 1	content: 
-YFS      Received DUMMY2 message type
-YFS      Received dummy strings string1 and string2, lengths 7, 7
-YFS      Server listening for message 
+User     MkDir: made directory /testing
+User     MkDir: success.
+User     MkDir: made directory /testing/test2
+User     MkDir: success.
+User     MkDir: made directory /testing/test3
+User     MkDir: success.
+User     CHDIRing pathname '/testing/test2'...
+User     ChDir: changing to directory 3
+User     ChDir: success.
+User     CREATEing pathname fil...
+User     Initializing file storage!
+User     findFreeFD: free spot 0 found in file storage.
+User     Create: inode num 5 set.
+User     Create: success.
+User     CHDIRing pathname '/testing/test3'...
+User     ChDir: changing to directory 4
+User     ChDir: success.
+User     Link: linking old path /testing/test2/fil to new path /testing/test3/string2
+User     Link: made directory /testing/test3
+User     Link: success.
+User     Unlink: unlinking path /testing/test3/string2
+User     Unlink: made directory /testing/test3/string2
+User     Unlink: success.
+User     CHDIRing pathname '/testing/test3'...
+User     ChDir: changing to directory 4
+User     ChDir: success.
+User     Link: linking old path string1 to new path string2
+User     Error linking directory 
+User     Link: linking old path /testing/test3 to new path string2
+User     Error linking directory 
+User     Link: linking old path /testing/test2/fil to new path string2
+User     Link: made directory (
+User     Link: success.
+User     Link: linking old path /testing/test2/fil to new path string3
+User     Link: made directory (
+User     Link: success.
+User     Link: linking old path /testing/test2/fil to new path string3
+User     Error linking directory 
+User     Link: linking old path /testing/test2/asdf to new path string2
+User     Error linking directory 
+User     Unlink: unlinking path asdf/asdf
+User     Error unlinking directory 
+User     Unlink: unlinking path /testing/test2
+User     Error unlinking directory 
+User     Unlink: unlinking path /testing/test2/fil
+User     Unlink: made directory /testing/test2/fil
+User     Unlink: success.
+User     Unlink: unlinking path /testing/test2/asdf
+User     Error unlinking directory 
+User     Unlink: unlinking path /testing/test3/string2
+User     Unlink: made directory /testing/test3/string2
+User     Unlink: success.
