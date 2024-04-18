@@ -85,7 +85,11 @@ void rmDirHandler(struct msg *message, int senderPid);
 void prepFree(struct inode *curr_inode);
 
 int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_num);
-
+int checkEmpty(int inode_num);
+int getInodeType(int inode_num);
+int getInodeSize(int inode_num);
+int freeInode(int matching_inode_num);
+int writeBlock(int block_index, void *buf);
 
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
@@ -223,6 +227,7 @@ void openHandler(struct msg *message, int sender_pid) {
     if (inum == ERROR)
     {
         replyError(message, sender_pid);
+        return;
     }
     else
     {
@@ -268,7 +273,10 @@ void createHandler(struct msg *message, int senderPid) {
 
     int matching_inode = findDirectoryEntry(parentInode, parent_inode_num, new_directory_name);
     if (matching_inode != ERROR) {
-        TracePrintf(0, "Create: directory %s already exists in inode %i. \n", new_directory_name, parent_inode_num);
+        TracePrintf(0, "Create: directory %s already exists in inode %i. truncating the file (this is not done yet).\n", new_directory_name, parent_inode_num);
+        //maybe in a handler
+        //check if the inode is a file type
+        //if it is a file type, set the size to 0
         replyError(message, senderPid);
         return;
     }
@@ -304,6 +312,7 @@ void statHandler(struct msg *message, int senderPid) {
     int inode_num = checkPath(message);
     if (inode_num == ERROR) { //error reaching directory or directory does not exist
         replyError(message, senderPid);
+        return;
     } else { //gotta read the info from the node into a stat. put into contents (struct stat is 16 bytes)
         void *buf = malloc(sizeof(struct inode));
         readInode(inode_num, buf);
@@ -332,12 +341,26 @@ void rmDirHandler(struct msg *message, int senderPid) {
     //gotta go down the inodes from the root until you get to the parent directory
     char *path = message->content;
     int curr_directory = message->data;
+    if (strcmp(".", path) == 0 || strcmp("..", path) == 0) {
+        TracePrintf(0, "ERROR: trying to remove . or ..\n");
+        replyError(message, senderPid);
+        return;
+    } 
+    //TODO: check if the path contains a /. or /..
+    if (checkPath(message) == curr_directory) {
+        //can't remove yourself
+        TracePrintf(0, "ERROR: can't remove yourself\n");
+        replyError(message, senderPid);
+        return;
+    }
+    //TODO check if contains /.. or /.
     int parent_inode_num = findParent(path, curr_directory);
     if (parent_inode_num == ERROR) {
         //handle error here
         TracePrintf(0, "Error finding parent_inode num in checkpath\n");
         // Reply(message, senderPid); 
         replyError(message, senderPid);
+        return;
     }
     struct inode *parentInode = malloc(sizeof(struct inode));
     if (readInode(parent_inode_num, parentInode) == ERROR) {
@@ -345,6 +368,7 @@ void rmDirHandler(struct msg *message, int senderPid) {
         TracePrintf(0, "Error reading parent_inode in checkpath\n");
         // replyError(message, senderPid);
         replyError(message, senderPid);
+        return;
     }
     // TracePrintf(1, "We are here1\n");
     TracePrintf(1, "parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
@@ -354,32 +378,175 @@ void rmDirHandler(struct msg *message, int senderPid) {
         TracePrintf(0, "parent inode %i is not a directory\n", parent_inode_num);
         // replyError(message, senderPid);
         replyError(message, senderPid);
+        return;
     }
     char *my_name = findLastDirName(path);
 
     int matching_inode_num = findDirectoryEntry(parentInode, parent_inode_num, my_name);
     if (matching_inode_num == ERROR) {
         replyError(message, senderPid);
+        return;
     }
     //we are a valid directory entry. now need to free the inode and update the parent's entry
+    //check if the directory entry is empty
+    if (getInodeType(matching_inode_num) == INODE_DIRECTORY) { //check if it is a directory type
+        if (checkEmpty(matching_inode_num)) { //check if it is empty
+            if (freeInode(matching_inode_num) == ERROR) {
+                replyError(message, senderPid);
+            }
+            //update the parent's entry
+            else if (freeDirectoryEntry(parentInode, parent_inode_num, matching_inode_num) == ERROR) {
+                replyError(message, senderPid);
+            } else {
+                replyWithInodeNum(message, senderPid, 0);
+
+            }
+        } else {
+            TracePrintf(0, "Inode %i is not empty, so cannot delete it\n", matching_inode_num);
+            // replyError(message, senderPid);
+            replyError(message, senderPid);
+            return;
+        }
+    } else {
+        //not a directory entry
+        TracePrintf(0, "Inode inode %i is not a directory, instead it is type %i so cannot delete the directory (or error reading inode)\n", matching_inode_num, getInodeType(matching_inode_num));
+        // replyError(message, senderPid);
+        replyError(message, senderPid);
+        return;
+    }
+}
+/**
+Checks if the given directory is empty (either size 2*dir entry (then it's .. and .) or if not, all entries have inode 0)
+*/
+int checkEmpty(int inode_num) {
+    if (getInodeType(inode_num) != INODE_DIRECTORY) { //not a directory
+        TracePrintf(1, "checkempty directory is not actually a directory\n");
+        return ERROR;
+    }
+
+    if (getInodeSize(inode_num) == 2 * sizeof(struct dir_entry)) {
+        TracePrintf(1, "checkempty directory is empty\n");
+        return true;
+    }
+
+    struct inode *curr_inode = malloc(sizeof(struct inode));
+    if (readInode(inode_num, curr_inode) == ERROR) {
+        TracePrintf(1, "Error reading inode in checkEmpty\n");
+        return ERROR;
+    }
+    //otherwise, need to check if all the dir_entry inodes are 0
+    //get the directory entry in this directory
+    //iterate through the blocks of the inode and check if they are a directory. (from 0 to size)
+    //If they are a directory, check if their string is the same as the current string. 
+    int blocks_iterated = 0;
+    void *block = malloc(BLOCKSIZE); //the current direct block 
+    void *indirect_block = malloc(BLOCKSIZE); //the indirect block, if applicable
+    struct dir_entry *current_entry; //the current entry we are checking 
+    int dir_found = false; //have we found an entry that is nonzero?
+    int block_num; //the current block number
+    int size_traversed = 0; //number of bytes traversed
+    int num_blocks_to_traverse = (curr_inode->size / (BLOCKSIZE * 1.0)) + 1; //number of blocks to traverse: size / blocksize + 1 (bc it rounds down)
+    
+    // int found_inode_num;
+    while (!dir_found && blocks_iterated < num_blocks_to_traverse) {
+        TracePrintf(1, "Searching block %i\n", blocks_iterated);
+        // go through the block, iterate through the necessary number of directory entries
+        int bytes_to_traverse_in_block = min(BLOCKSIZE, (curr_inode->size) - size_traversed); //this is the number of bytes to read from the current block
+        int entries_to_traverse_in_block = bytes_to_traverse_in_block / sizeof(struct dir_entry); //this is the number of directory entries to check in the current block
+        if (blocks_iterated < NUM_DIRECT) {
+            //we are in the direct set of blocks
+            block_num = curr_inode->direct[blocks_iterated]; // this is the block index to read from
+        } else {
+            //otherwise we are in indirect block. find the block index from the indirect block
+            int read_status = readBlock(curr_inode->indirect, indirect_block);
+            if (read_status == ERROR) {
+                TracePrintf(0, "Error reading indirect block in path validation\n");
+                return ERROR;
+            }
+            block_num = ((int *)indirect_block)[blocks_iterated - NUM_DIRECT];
+        }
+        int readStatus = readBlock(block_num, block); //read the block into memory
+        if (readStatus == ERROR) {
+                TracePrintf(0, "Error reading a subBlock in path validation\n");
+                return ERROR;
+            }
+        current_entry = (struct dir_entry *)block; // start at the first entry
+        int entries;
+        for (entries = 0; entries < entries_to_traverse_in_block; entries++) {
+            TracePrintf(1, "Current entry name is %s, corresponding to inode number %i\n", current_entry->name, current_entry->inum);
+            //check all the entries in the block
+            if (current_entry->inum == FREEFILE || (strcmp(".", current_entry->name) == 0) || (strcmp("..", current_entry->name) == 0)) {
+                current_entry = (struct dir_entry *)((char *)current_entry + sizeof (struct dir_entry));
+                continue;
+            } else {
+                // dir_entry = true;
+                TracePrintf(1, "there is a nonfree directory entry with name %s\n", current_entry->name);
+                current_entry = (struct dir_entry *)((char *)current_entry + sizeof (struct dir_entry));
+                return false;
+            }
+
+        }
+        blocks_iterated++;
+        size_traversed += bytes_to_traverse_in_block;
+    }
+    return true;
+    
+
+}
+
+
+/**
+Gets the type of the node
+*/
+int getInodeType(int inode_num) {
+    struct inode *curr_inode = malloc(sizeof(struct inode));
+    if (readInode(inode_num, curr_inode) == ERROR) {
+        //handler error here
+        TracePrintf(0, "Error freeing the inode in getInodeType\n");
+        // replyError(message, senderPid);
+        return ERROR;
+    }
+    int type = curr_inode->type;
+    free(curr_inode);
+    return type;
+}
+
+/**
+Gets the type of the node
+*/
+int getInodeSize(int inode_num) {
+    struct inode *curr_inode = malloc(sizeof(struct inode));
+    if (readInode(inode_num, curr_inode) == ERROR) {
+        //handler error here
+        TracePrintf(0, "Error freeing the inode in getInodeType\n");
+        // replyError(message, senderPid);
+        return ERROR;
+    }
+    int size = curr_inode->size;
+    free(curr_inode);
+    return size;
+}
+
+/**
+frees the inode specified by inodenum
+*/
+
+int freeInode(int matching_inode_num) {
 
     struct inode *curr_inode = malloc(sizeof(struct inode));
     if (readInode(matching_inode_num, curr_inode) == ERROR) {
         //handler error here
-        TracePrintf(0, "Error reading parent_inode in checkpath\n");
+        TracePrintf(0, "Error freeing the inode in freeInode. we don't have a proper handler here\n");
         // replyError(message, senderPid);
-        replyError(message, senderPid);
+        return ERROR;
     }
     
     prepFree(curr_inode);
     writeInodeToDisk(matching_inode_num, curr_inode);
     addFreeInode(matching_inode_num);
-
-
-    //update the parent's entry
-    freeDirectoryEntry(parentInode, parent_inode_num, matching_inode_num);
+    free(curr_inode);
+    return 0;
 }
-
 /**
 Prepares the inode to be freed. Sets all fields to corresponding free values
 */
@@ -390,7 +557,7 @@ void prepFree(struct inode *curr_inode) {
     curr_inode->nlink = 0;
     curr_inode->reuse = curr_inode->reuse + 1;
     curr_inode->size = 0;
-    //TODO: check direct and indirect fields here
+    //TODO: check direct and indirect fields here and free their blocks
     return;
 }
 
@@ -399,9 +566,11 @@ Basically checks the path and returns the directory inode at the end of the path
 */
 
 void chDirHandler(struct msg *message, int senderPid) {
+    TracePrintf(1, "Made it to the chdirhandler\n");
     int inode_num = checkPath(message);
     if (inode_num == ERROR) { //error reaching directory or directory does not exist
         replyError(message, senderPid);
+        return;
     } else { //gotta check if it is a directory type
         void *buf = malloc(sizeof(struct inode));
         readInode(inode_num, buf);
@@ -410,6 +579,7 @@ void chDirHandler(struct msg *message, int senderPid) {
             replyWithInodeNum(message, senderPid, inode_num);
         } else {
             replyError(message, senderPid);
+            return;
         }
     }
 }
@@ -642,14 +812,26 @@ int checkPath(struct msg *message) {
     }
 
     if (strcmp("..", path) == 0) {
-        // TracePrintf(0, "checkPath: Go to parent file\n");
-        // struct inode *curr_inode = malloc(sizeof(struct inode));
-        // int read_s = readInode(curr_directory, curr_inode);
-        // if (read_s == ERROR)
-        // {
-        //     TracePrintf(0, "checkPath: ERROR reading current node\n");
-        //     return ERROR;
-        // }
+        
+        TracePrintf(0, "checkPath: Go to parent file\n");
+        struct inode *curr_inode = malloc(sizeof(struct inode));
+        int read_s = readInode(curr_directory, curr_inode);
+        if (read_s == ERROR)
+        {
+            TracePrintf(0, "checkPath: ERROR reading current node\n");
+            free(curr_inode);
+            return ERROR;
+        }
+
+        int parent = findDirectoryEntry(curr_inode, curr_directory, "..");
+        if (parent == ERROR) {
+            TracePrintf(0, "error finding .. of the node\n");
+            free(curr_inode);
+            return ERROR;
+        } else {
+            free(curr_inode);
+            return parent;
+        }
         // int block_num = curr_inode->direct[0];  // parent stored in 2nd dir entry
         // void *block = malloc(BLOCKSIZE);
         // int readStatus = readBlock(block_num, block); // read the block into memory
@@ -741,6 +923,21 @@ int readBlock(int block_index, void *buf) {
 
 }   
 
+/**
+writes the block at index block_index
+*/
+
+int writeBlock(int block_index, void *buf) {
+    TracePrintf(1, "Reading block %i\n", block_index);
+    // int in_idx;
+    
+    int status = WriteSector(block_index, buf);
+    if (status == ERROR) {
+        TracePrintf(0, "Error reading sector %i\n", block_index);
+    }
+    return 0;
+
+} 
 
 
 /**
@@ -903,6 +1100,7 @@ Searches for the given name in a set of directories in the given inode.
 Returns ERROR if not found, otherwise returns the inodenum corresponding to the directory entry. 
 Copied from the findParent() function as of 4/16/24 at 15:06pm (so if it's wrong, change both the findParent() and this, or call this in FindParent())
 as of 4/16/24, also copied this for the freeDirectoryEntry (added a freeing line)
+as of 4/17/24, copied this to checkEmpty
 */
 
 int findDirectoryEntry(struct inode *curr_inode, int curr_inode_num, char *name) {
@@ -954,6 +1152,7 @@ int findDirectoryEntry(struct inode *curr_inode, int curr_inode_num, char *name)
             TracePrintf(1, "Current entry name is %s, corresponding to inode number %i\n", current_entry->name, current_entry->inum);
             //check all the entries in the block
             if (current_entry->inum == FREEFILE) {
+                current_entry = (struct dir_entry *)((char *)current_entry + sizeof (struct dir_entry));
                 continue;
             }
             if (strcmp(current_string, current_entry->name) == 0) {
@@ -1018,14 +1217,14 @@ int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_t
             //otherwise we are in indirect block. find the block index from the indirect block
             int read_status = readBlock(curr_inode->indirect, indirect_block);
             if (read_status == ERROR) {
-                TracePrintf(0, "Error reading indirect block in path validation\n");
+                TracePrintf(0, "Error reading indirect block in free directory\n");
                 return ERROR;
             }
             block_num = ((int *)indirect_block)[blocks_iterated - NUM_DIRECT];
         }
         int readStatus = readBlock(block_num, block); //read the block into memory
         if (readStatus == ERROR) {
-                TracePrintf(0, "Error reading a subBlock in path validation\n");
+                TracePrintf(0, "Error reading a subBlock in free directory\n");
                 return ERROR;
             }
         current_entry = (struct dir_entry *)block; // start at the first entry
@@ -1034,6 +1233,7 @@ int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_t
             TracePrintf(1, "Current entry name is %s, corresponding to inode number %i\n", current_entry->name, current_entry->inum);
             //check all the entries in the block
             if (current_entry->inum == FREEFILE) {
+                current_entry = (struct dir_entry *)((char *)current_entry + sizeof (struct dir_entry));
                 continue;
             }
             if (current_entry->inum == inode_to_remove) { //this is what is changed
@@ -1041,15 +1241,22 @@ int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_t
                 dir_found = true;
                 //check if it is a directory type occurs at the top of the traverse tokens loop
                 found_inode_num = current_entry->inum;
-                TracePrintf(1, "Found node %s, with inode %i!\n", found_inode_num, found_inode_num);
+                TracePrintf(1, "Found node %i, with inode %i! settiing the dir_entry inode num to 0.\n", found_inode_num, found_inode_num);
                 current_entry->inum = 0;
                 // curr_inode_num = current_entry->inum;
                 // readInode(curr_inode_num, curr_inode); //read the new inode into the current inode field
                 break;
             }
-            TracePrintf(1, "Entry inode %s does not match %s\n", current_entry->inum, inode_to_remove);
+            TracePrintf(1, "Entry inode %i does not match %i\n", current_entry->inum, inode_to_remove);
+            // TracePrintf(1, "WE are still printing\n");
             current_entry = (struct dir_entry *)((char *)current_entry + sizeof (struct dir_entry));
-
+        
+        }
+        if (dir_found) { //directory found. write the block
+            if (writeBlock(block_num, block) == ERROR) {
+                TracePrintf(0, "Error writing a subBlock in free directory\n");
+                return ERROR;
+            }
         }
         blocks_iterated++;
         size_traversed += bytes_to_traverse_in_block;
@@ -1059,6 +1266,7 @@ int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_t
         TracePrintf(1, "Couldn't find node %s!\n", inode_to_remove);
         return ERROR;
     } //otherwise, continue iterating through the path
+    TracePrintf(1, "returning from freeDirectoryEntry\n");
     return found_inode_num;
 }
 
@@ -1218,6 +1426,10 @@ int findParent(char *name, int curr_directory) {
             int entries;
             for (entries = 0; entries < entries_to_traverse_in_block; entries++) {
                 //check all the entries in the block
+                if (current_entry->inum == FREEFILE) {
+                    current_entry = (struct dir_entry *)((char *)current_entry + sizeof (struct dir_entry));
+                    continue;
+                }
                 if (strcmp(current_string, current_entry->name) == 0) {
                     //found the next inode
                     dir_found = true;
@@ -1285,6 +1497,9 @@ int getFreeInode() {
     }
     TracePrintf(1, "found a free inode! %i\n", nextChild->inode_num);
     free_nodes_size--;
+
+    //Clean the inode if it is not clean already
+
     return nextChild->inode_num;
 }
 

@@ -243,6 +243,7 @@ int Write(int fd, void *buf, int size) {
 //     return 0;
 // }
 
+
 int Dummy(char *path) { //used to send a dummy message
     TracePrintf(0, "dummy: message sending.\n");
     struct msg *container = malloc(sizeof(struct msg));//TODO: malloc here?
@@ -297,6 +298,7 @@ int RmDir(char *pathname) {
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG)
     {
+        TracePrintf(0, "RmDir: failed.\n");
         return ERROR;
     }
 
@@ -307,14 +309,18 @@ int RmDir(char *pathname) {
 
 int ChDir(char *pathname) {
     TracePrintf(0, "CHDIRing pathname '%s'...\n", pathname);
-
+    // TracePrintf(0, "here1");
     // build message
     struct msg *container = malloc(sizeof(struct msg));
+    // TracePrintf(0, "here4");
     container->type = CHDIR;
+    // TracePrintf(0, "here3");
     container->data = current_directory;
+    // TracePrintf(0, "here2");
     strcpy(container->content, pathname);
-
+    // TracePrintf(0, "here6");
     Send(container, -FILE_SERVER);
+    // TracePrintf(0, "here9");
     if (container->data == ERMSG)
     {
         return ERROR;
