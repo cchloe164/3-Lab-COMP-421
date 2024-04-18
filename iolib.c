@@ -31,6 +31,7 @@
 #define BLOCK_FREE 0
 #define BLOCK_USED 1
 #define DUMMY 50
+#define DUMMY2 51
 #define ERMSG -2
 #define REPLYMSG -3
 
@@ -54,7 +55,13 @@ struct msg {    // 32-byte all-purpose message
     char content[16];
     void *ptr;
 };
-
+struct link_strs { //structure for linking
+    //31 if the name is 30 chars and a null
+    char old[31]; //the old string
+    char new[31]; //the new string
+    int old_len; //length of the old string
+    int new_len; //length of the new string
+};
 struct ext_msg {
     void *buf;
     int size;
@@ -244,6 +251,87 @@ int Write(int fd, void *buf, int size) {
 // }
 
 
+int Unlink(char *pathname) {
+    TracePrintf(0, "Unlink: unlinking path %s\n", pathname);
+    struct msg *container = malloc(sizeof(struct msg));
+    container->type = UNLINK;
+    container->data = current_directory;
+    strcpy(container->content, pathname);
+    Send(container, -FILE_SERVER);
+    if (container->type == REPLYMSG) {
+        TracePrintf(0, "Unlink: made directory %s\n", container->content);
+        TracePrintf(0, "Unlink: success.\n");
+        free(container);
+        return 0;
+    } else if (container->type == ERMSG) {
+        TracePrintf(0, "Error unlinking directory \n");
+        free(container);
+        return ERROR;
+    } else {
+        TracePrintf(0, "Unlink: should not reach this point.\n");
+        free(container);
+        return ERROR;
+    }
+
+}
+int Link(char *oldname, char *newname) {
+    TracePrintf(0, "Link: linking old path %s to new path %s\n", oldname, newname);
+    struct msg *container = malloc(sizeof(struct msg));
+    container->type = LINK;
+    container->data = current_directory;
+
+    struct link_strs *strs = malloc(sizeof(struct link_strs));
+    strcpy(strs->old, oldname);
+    strcpy(strs->new, newname);
+    strs->old_len = strlen(oldname);
+    strs->new_len = strlen(newname);
+    // link_strs->new = newname;
+    container->ptr = strs;
+    Send(container, -FILE_SERVER);
+    if (container->type == REPLYMSG) {
+        TracePrintf(0, "Link: made directory %s\n", container->content);
+        TracePrintf(0, "Link: success.\n");
+        free(container);
+        return 0;
+    } else if (container->type == ERMSG) {
+        TracePrintf(0, "Error linking directory \n");
+        free(container);
+        return ERROR;
+    } else {
+        TracePrintf(0, "Link: should not reach this point.\n");
+        return ERROR;
+    }
+}
+
+int Dummy2(char *oldname, char *newname) {
+    TracePrintf(0, "Dummy: sending old path %s and new path %s\n", oldname, newname);
+    struct msg *container = malloc(sizeof(struct msg));
+    container->type = DUMMY2;
+    container->data = current_directory;
+
+    struct link_strs *strs = malloc(sizeof(struct link_strs));
+    strcpy(strs->old, oldname);
+    strcpy(strs->new, newname);
+    strs->old_len = strlen(oldname);
+    strs->new_len = strlen(newname);
+    // link_strs->new = newname;
+    container->ptr = strs;
+    Send(container, -FILE_SERVER);
+    if (container->type == REPLYMSG) {
+        TracePrintf(0, "Dummy: made directory %s\n", container->content);
+        TracePrintf(0, "Dummy: success.\n");
+        free(container);
+        return 0;
+    } else if (container->type == ERMSG) {
+        TracePrintf(0, "Error linking directory \n");
+        free(container);
+        return ERROR;
+    } else {
+        TracePrintf(0, "Link: should not reach this point.\n");
+        return ERROR;
+    }
+}
+
 int Dummy(char *path) { //used to send a dummy message
     TracePrintf(0, "dummy: message sending.\n");
     struct msg *container = malloc(sizeof(struct msg));//TODO: malloc here?
@@ -323,6 +411,7 @@ int ChDir(char *pathname) {
     // TracePrintf(0, "here9");
     if (container->data == ERMSG)
     {
+        TracePrintf(0, "ChDir: Error changing to directory %d\n", current_directory);
         return ERROR;
     }
     current_directory = container->data;    // update cur_dir to new directory

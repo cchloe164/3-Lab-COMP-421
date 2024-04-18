@@ -34,6 +34,7 @@
 #define BLOCK_FREE 0
 #define BLOCK_USED 1
 #define DUMMY 50
+#define DUMMY2 51
 #define ERMSG -2
 #define REPLYMSG -3
 #define FREEFILE 0
@@ -51,6 +52,15 @@ struct in_str { //an inode linkedlist class
     struct in_str *next;
     struct in_str *prev;
 };
+
+struct link_strs { //structure for linking
+    //31 if the name is 30 chars and a null
+    char old[31];
+    char new[31];
+    int old_len;
+    int new_len;
+};
+
 int pid;
 int getPid();
 //Function signatures
@@ -91,6 +101,10 @@ int getInodeSize(int inode_num);
 int freeInode(int matching_inode_num);
 int writeBlock(int block_index, void *buf);
 
+void unlinkHandler(struct msg *message, int senderPid);
+char *getPath(struct msg *mesage);
+void linkHandler(struct msg *message, int senderPid);
+void dummyHandler(struct msg *message, int senderPid);
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
 int *freeBlocks;
@@ -198,6 +212,16 @@ int main(int argc, char** argv) {
                         rmDirHandler(message, receive);
                         break;
                     }
+                    case UNLINK: {
+                        TracePrintf(0, "Received UNLINK message type\n");
+                        unlinkHandler(message, receive);
+                        break;
+                    }
+                    case LINK: {
+                        TracePrintf(0, "Received LINK message type\n");
+                        linkHandler(message, receive);
+                        break;
+                    }
                     case DUMMY: {
                         TracePrintf(0, "Received DUMMY message type\n");
                         // mkdirhandler(message);
@@ -206,6 +230,12 @@ int main(int argc, char** argv) {
                         Reply(message, receive);
                         break;
 
+                    }
+                    case DUMMY2: {
+                        TracePrintf(0, "Received DUMMY2 message type\n");
+                        // mkdirhandler(message);
+                        dummyHandler(message, receive);
+                        break;
                     }
                     default: {
                         TracePrintf(0, "Received invalid message type\n");
@@ -221,6 +251,98 @@ int main(int argc, char** argv) {
 
 }
 
+void dummyHandler(struct msg *message, int senderPid) {
+    struct link_strs* paths = malloc(sizeof(struct link_strs));
+    if (CopyFrom(senderPid, paths, message->ptr, sizeof(struct link_strs)) == ERROR) {
+        TracePrintf(0, "ERROR copying from in linkhandler\n");
+        replyError(message, senderPid);
+    }
+    TracePrintf(0, "Received dummy strings %s and %s, lengths %i, %i\n", paths->old, paths->new, paths->old_len, paths->new_len);
+}
+
+/**
+Handles Link: 
+This request creates a (hard) link from the new file name newname to the existing file oldname . 
+The files oldname and newname need not be in the same directory. The file oldname must not be a directory.
+ It is an error if the file newname already exists. On success, this request returns 0; on any error, the
+  value ERROR is returned.
+*/
+
+void linkHandler(struct msg *message, int senderPid) {
+    struct link_strs* paths = malloc(sizeof(struct link_strs));
+    if (CopyFrom(senderPid, paths, message->ptr, sizeof(struct link_strs)) == ERROR) {
+        TracePrintf(0, "ERROR copying from in linkhandler\n");
+        replyError(message, senderPid);
+    }
+    TracePrintf(0, "Received strings %s and %s, lengths %i, %i\n", paths->old, paths->new, paths->old_len, paths->new_len);
+}
+
+
+/**
+Handles unlink: 
+This request removes the directory entry forpathname, and if this is the last link to a file, 
+the file itself should be deleted by freeing its inode. 
+The file pathname must not be a directory. On success, this request returns 0; on any error, the value ERROR is returned.
+*/
+
+void unlinkHandler(struct msg *message, int sender_pid) {
+    //check path
+    int node_num = checkPath(message);
+    int curr_directory = message->data;
+    //check the inode. if not directory, remove one link 
+    if (getInodeType(node_num) == INODE_DIRECTORY) {
+        TracePrintf(0, "ERROR: Can't unlink a directory, number %i\n", node_num);
+        replyError(message, sender_pid);
+        return;
+    }
+    //not a directory, so remove one link
+    struct inode *node = malloc(sizeof(struct inode));
+    if (readInode(node_num, node) == ERROR) {
+        TracePrintf(0, "ERROR: Can't read a inode, number %i\n", node_num);
+        replyError(message, sender_pid);
+        return;
+    }
+    node->nlink = node->nlink - 1;
+    
+
+    //remove entry from parent (like removedirectory. think we call freeDirectory() here)
+    struct inode *parent_node = malloc(sizeof(struct inode));
+    char *path = getPath(message);
+    int parent_inode_num = findParent(path, curr_directory);
+    if (parent_inode_num == ERROR) {
+        TracePrintf(0, "ERROR: Can't find a parent, path %s\n",path);
+        replyError(message, sender_pid);
+        return;
+    }
+    if (readInode(node_num, parent_node) == ERROR) {
+        TracePrintf(0, "ERROR: Can't read a parent, number %i\n", parent_inode_num);
+        replyError(message, sender_pid);
+        return;
+    }
+
+    if (freeDirectoryEntry(parent_node, parent_inode_num, node_num) == ERROR) {
+        TracePrintf(0, "ERROR: Can't read free directory inode %i in directory number%i\n", node_num, parent_inode_num);
+        replyError(message, sender_pid);
+        return;
+    }
+    //if nlink = 0, freeInode()
+    if (node->nlink == 0) {
+        //free the inode
+        TracePrintf(1, "node has 0  links now. Freeing node %i\n", node_num);
+        freeInode(node_num);
+    } else { //update the disk with the node
+        //otherwise write to disk the new inode with one link removed
+        //
+        writeInodeToDisk(node_num, node);
+    }
+    free(node);
+    free(parent_node);
+    
+}
+
+/**
+handles open
+*/
 void openHandler(struct msg *message, int sender_pid) {
     TracePrintf(0, "Received pathname %s\tcur dir %d\tpid %d\n", message->content, message->data, sender_pid);
     int inum = checkPath(message);
@@ -528,7 +650,7 @@ int getInodeSize(int inode_num) {
 }
 
 /**
-frees the inode specified by inodenum
+frees the inode specified by inodenum. does not take care of parent directory handling
 */
 
 int freeInode(int matching_inode_num) {
@@ -796,13 +918,21 @@ void init() {
 }
 
 /**
+Gets the path
+*/
+
+char *getPath(struct msg *message) {
+    return message->content;
+}
+
+/**
 Checks the path contained in the message's contents. returns the inode number if the path is valid, else ERROR if anything else. 
 copied from top of createhandler / mkdirhandler (they should be the same)
 */
 int checkPath(struct msg *message) {
     //go down the nodes from the root until get to what you're creating, then check that entry
     //gotta go down the inodes from the root until you get to the parent directory
-    char *path = message->content;
+    char *path = getPath(message);
     int curr_directory = message->data;
 
     // Chloe's fanangling:
