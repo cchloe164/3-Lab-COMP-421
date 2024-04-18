@@ -465,19 +465,27 @@ void createHandler(struct msg *message, int senderPid) {
     char *new_directory_name = findLastDirName(path);
 
     int matching_inode = findDirectoryEntry(parentInode, parent_inode_num, new_directory_name);
+    int new_inode_num;
     if (matching_inode != ERROR) {
         TracePrintf(0, "Create: directory %s already exists in inode %i. truncating the file (this is not done yet).\n", new_directory_name, parent_inode_num);
         //maybe in a handler
         //check if the inode is a file type
         //if it is a file type, set the size to 0
-        replyError(message, senderPid);
-        return;
+        // replyError(message, senderPid);
+        // return;
+        if (getInodeType(matching_inode) == INODE_REGULAR) {
+            new_inode_num = matching_inode;
+            
+        }
+
+    } else {
+        // TracePrintf(1, "We are here4\n");
+        new_inode_num = getFreeInode();
+        TracePrintf(1, "Create: Setting new inode %i with type %i and parent %i\n", new_inode_num, INODE_DIRECTORY, parent_inode_num);
+        setNewInode(new_inode_num, INODE_REGULAR, 1, 0, 0, parent_inode_num); //TODO: change this -1
     }
     
-    // TracePrintf(1, "We are here4\n");
-    int new_inode_num = getFreeInode();
-    TracePrintf(1, "Create: Setting new inode %i with type %i and parent %i\n", new_inode_num, INODE_DIRECTORY, parent_inode_num);
-    setNewInode(new_inode_num, INODE_REGULAR, 1, 0, 0, parent_inode_num); //TODO: change this -1
+    
     // TracePrintf(1, "We are here6\n");
     writeDirectoryToInode(parentInode, parent_inode_num, new_inode_num, new_directory_name);
     // entry->name = findLastDirName(path);

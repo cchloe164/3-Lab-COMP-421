@@ -18,6 +18,10 @@ main()
     MkDir("/testing/test3");
     MkDir("/testing/test2");
     MkDir("/testinga/test2");
+    MkDir("test4");
+    ChDir("/testing");
+    MkDir("test4");
+    ChDir("/testing/test4");
 
     return 0;
 }
