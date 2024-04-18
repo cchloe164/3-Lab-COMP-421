@@ -47,7 +47,7 @@ struct msg { //Dummy message structure from the given PDF
 
 struct in_str { //an inode linkedlist class
     // struct inode *node;
-    int inode_num;
+    int inum;
     struct in_str *next;
     struct in_str *prev;
 };
@@ -55,28 +55,30 @@ int pid;
 int getPid();
 //Function signatures
 int sectorBytes(struct inode *node); // how many bytes are used in the last used block/sector of the node (use this to calculate how much free space is left in current block, or where free space exists)
-struct inode *findInodePtr(int inode_num); //DEFUNCT; if you need this logic, find it in SETNEWINODE
+struct inode *findInodePtr(int inum); //DEFUNCT; if you need this logic, find it in SETNEWINODE
 int findDirectoryEntry(struct inode *curr_inode, int curr_inode_num, char *name); // Searches for file or directory named "name" in the inode (presumably a directory type)
 int markUsed(int blocknum); //marks a block as used
 void init(); //initializes the fs structure
 int readInodeBlock(int block_index, int num_inodes_to_read, void *buf, int start_index);  //used only for init() to read blocks that contain inodes
-int readInode(int inode_num, void *buf); //Super useful: takes in an inode number and a buffer, reads the contents of the inode into the buffer (please remember to write back to disk)
-int writeInodeToDisk(int inode_num, struct inode *inode_to_cpy); //writes the inode info contained in inode_to_cpy to the inode in disk specified by inode_num
-void addFreeInode(int inode_num); //used in init to add inodes to the freelist; if you free an inode, add it here
+int readInode(int inum, void *buf); //Super useful: takes in an inode number and a buffer, reads the contents of the inode into the buffer (please remember to write back to disk)
+int writeInodeToDisk(int inum, struct inode *inode_to_cpy); //writes the inode info contained in inode_to_cpy to the inode in disk specified by inum
+void addFreeInode(int inum); //used in init to add inodes to the freelist; if you free an inode, add it here
 int findFreeBlock(); //finds a free block
-int writeDirectoryToInode(struct inode *node, int curr_inode, int inode_num, char *name); //writes a dir_entry containing inode_num and name to the inode curr_inode.
+int writeDirectoryToInode(struct inode *node, int curr_inode, int inum, char *name); //writes a dir_entry containing inum and name to the inode curr_inode.
 int findParent(char *name, int curr_directory); //finds the parent of the path
 int readBlock(int block_index, void *buf); //reads the block 
 int numBlocksUsedBy(struct inode *node); //calculates the number of blocks used by the inode (based on size)
-int setNewInode(int inode_num, short type, short nlink, int reuse, int size, int parent_inode_num); //creates a new inodes
+int setNewInode(int inum, short type, short nlink, int reuse, int size, int parent_inode_num); //creates a new inodes
 //building the list in memory of free disk blocks
 void mkDirHandler(struct msg *message, int senderPid); //handles mkdir requests
+void writeHandler(struct msg *message, int senderPid);
 void openHandler(struct msg *message, int senderPid);
-int getLastSector(struct inode *node); //gets the last sector used in the inode
+int getSector(struct inode *node, int sector_num); // gets the sector used in the inode
+int getLastSector(struct inode *node); // gets the last sector used in the inode
 int getFreeInode(); //gets a free inode
 char *findLastDirName(char *name); //finds the last directory name in a path (after the last '/', or the whole string)
 int replyError(struct msg *message, int pid);
-int replyWithInodeNum(struct msg *message, int pid, int inode_num);
+int replyWithInodeNum(struct msg *message, int pid, int inum);
 void chDirHandler(struct msg *message, int senderPid);
 void createHandler(struct msg *message, int senderPid);
 void statHandler(struct msg *message, int senderPid);
@@ -84,10 +86,10 @@ int checkPath(struct msg *message);
 void rmDirHandler(struct msg *message, int senderPid);
 void prepFree(struct inode *curr_inode);
 
-int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_num);
-int checkEmpty(int inode_num);
-int getInodeType(int inode_num);
-int getInodeSize(int inode_num);
+int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inum);
+int checkEmpty(int inum);
+int getInodeType(int inum);
+int getInodeSize(int inum);
 int freeInode(int matching_inode_num);
 int writeBlock(int block_index, void *buf);
 
@@ -168,9 +170,19 @@ int main(int argc, char** argv) {
                         TracePrintf(0, "Received NONE message type\n");
                         break;
                     }
+                    case CREATE: {
+                        TracePrintf(0, "Received CREATE message type\n");
+                        createHandler(message, receive);
+                        break;
+                    }
                     case OPEN: {
                         TracePrintf(0, "Received OPEN message type\n");
                         openHandler(message, receive);
+                        break;
+                    }
+                    case WRITE: {
+                        TracePrintf(0, "Received WRITE message type\n");
+                        writeHandler(message, receive);
                         break;
                     }
                     case MKDIR: {
@@ -178,24 +190,19 @@ int main(int argc, char** argv) {
                         mkDirHandler(message, receive);
                         break;
                     }
-                    case CREATE: {
-                        TracePrintf(0, "Received CREATE message type\n");
-                        createHandler(message, receive);
-                        break;
-                    }
                     case CHDIR: {
                         TracePrintf(0, "Received CHDIR message type\n");
                         chDirHandler(message, receive);
                         break;
                     }
-                    case STAT: {
-                        TracePrintf(0, "Received STAT message type\n");
-                        statHandler(message, receive);
-                        break;
-                    }
                     case RMDIR: {
                         TracePrintf(0, "Received RMDIR message type\n");
                         rmDirHandler(message, receive);
+                        break;
+                    }
+                    case STAT: {
+                        TracePrintf(0, "Received STAT message type\n");
+                        statHandler(message, receive);
                         break;
                     }
                     case DUMMY: {
@@ -292,14 +299,108 @@ void createHandler(struct msg *message, int senderPid) {
     writeInodeToDisk(parent_inode_num, parentInode);
     TracePrintf(1, "Create: parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
     replyWithInodeNum(message, senderPid, new_inode_num);
+    return;
 }
 
-/**
+struct ext_msg
+{
+    char content[16];
+    int size;
+    int inum;
+};
 
-*/
-// void openHandler() {
-//     //go down the nodes from the root until get to what you're opening, then add to the directory
-// }
+void writeHandler(struct msg *message, int senderPid)
+{
+    TracePrintf(0, "Write: extracting info from message\n");
+    // struct ext_msg *temp = (struct ext_msg *)message->ptr;
+    struct ext_msg temp;
+    CopyFrom(senderPid, &temp, message->ptr, sizeof(struct ext_msg));
+    int inum = temp.inum;
+    char *content = temp.content;
+    int write_size = temp.size;
+    int cur_pos = message->data;
+    TracePrintf(0, "inum: %d\tcontent: %s\tsize: %d\tcur pos: %d\n", inum, content, write_size, cur_pos);
+
+    TracePrintf(0, "Write: reading in inode\n");
+    void *buf = malloc(sizeof(struct inode));
+    readInode(inum, buf);
+    struct inode *node = (struct inode *)buf;
+
+    if (node->type == INODE_DIRECTORY) {
+        TracePrintf(0, "Write: ERROR attempting to write to a directory\n");
+        replyError(message, senderPid);
+        return;
+    }
+    
+    TracePrintf(0, "Write: find sector\n");
+    unsigned int sector_i = cur_pos / BLOCKSIZE + 1;    // get index of current block
+    if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int))) {    // check if memory limit exceeded
+        TracePrintf(0, "Write: File is full. Nothing was written.\n");
+        message->data = 0;
+        Reply(message, senderPid);
+        return;
+    }
+    int sector = getSector(node, sector_i);  // get block number
+    // read in sector
+    char *buf1 = malloc(SECTORSIZE);
+    if (ReadSector(sector, buf1) == ERROR)
+    {
+        TracePrintf(0, "Write: ERROR reading sector failed\n");
+        replyError(message, senderPid);
+        return;
+    }
+    TracePrintf(0, "Write: find position in sector\n");
+    int sector_pos = cur_pos % BLOCKSIZE;    // get current position within block
+    int space_left = BLOCKSIZE - sector_pos;
+
+    TracePrintf(0, "Write: start writing...\n");
+    int i = 0;
+    while (i < write_size - 1)
+    {
+        TracePrintf(0, "Write: writing %c\n", *content);
+        if (space_left == 0) {
+            if (WriteSector(sector, buf1) == ERROR)    // write to current sector
+            {
+                replyError(message, senderPid);
+                return;
+            }
+            // get next sector
+            sector_i++;
+            if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int))) {    // check if memory limit exceeded
+                TracePrintf(0, "Write: File is full. Nothing was written.\n");
+                message->data = 0;
+                Reply(message, senderPid);
+                return;
+            }
+            sector = getSector(node, sector_i);  // get block number
+            if (ReadSector(sector, buf1) == ERROR)   // set buf
+            {
+                TracePrintf(0, "Write: ERROR reading sector failed\n");
+                replyError(message, senderPid);
+                return;
+            }
+            // reset counters
+            sector_pos = 0;
+            space_left = BLOCKSIZE;
+        }
+
+        buf1[sector_pos] = *content;
+        i++;
+        sector_pos++;
+        content++;
+        space_left--;
+    }
+
+    if (WriteSector(sector, buf1) == ERROR)
+    {
+        replyError(message, senderPid);
+        return;
+    }
+
+    message->data = i + 1;
+    Reply(message, senderPid);
+    return;
+}
 
 /**
 This request returns information about the file indicated by pathname in the information structure
@@ -309,22 +410,22 @@ On success, this request returns 0; on any error, the value ERROR is returned.
 */
 
 void statHandler(struct msg *message, int senderPid) {
-    int inode_num = checkPath(message);
-    if (inode_num == ERROR) { //error reaching directory or directory does not exist
+    int inum = checkPath(message);
+    if (inum == ERROR) { //error reaching directory or directory does not exist
         replyError(message, senderPid);
         return;
     } else { //gotta read the info from the node into a stat. put into contents (struct stat is 16 bytes)
         void *buf = malloc(sizeof(struct inode));
-        readInode(inode_num, buf);
+        readInode(inum, buf);
         struct inode *node = (struct inode *)buf;
         struct Stat *statbuf = (struct Stat *)message->content;
-        statbuf->inum = inode_num;
+        statbuf->inum = inum;
         statbuf->type = node->type;
         statbuf->size = node->size;
         statbuf->nlink = node->nlink;
         //reply with that contents
         message->type = REPLYMSG;
-        message->data = inode_num;
+        message->data = inum;
         Reply(message, senderPid);
 
     }
@@ -418,19 +519,19 @@ void rmDirHandler(struct msg *message, int senderPid) {
 /**
 Checks if the given directory is empty (either size 2*dir entry (then it's .. and .) or if not, all entries have inode 0)
 */
-int checkEmpty(int inode_num) {
-    if (getInodeType(inode_num) != INODE_DIRECTORY) { //not a directory
+int checkEmpty(int inum) {
+    if (getInodeType(inum) != INODE_DIRECTORY) { //not a directory
         TracePrintf(1, "checkempty directory is not actually a directory\n");
         return ERROR;
     }
 
-    if (getInodeSize(inode_num) == 2 * sizeof(struct dir_entry)) {
+    if (getInodeSize(inum) == 2 * sizeof(struct dir_entry)) {
         TracePrintf(1, "checkempty directory is empty\n");
         return true;
     }
 
     struct inode *curr_inode = malloc(sizeof(struct inode));
-    if (readInode(inode_num, curr_inode) == ERROR) {
+    if (readInode(inum, curr_inode) == ERROR) {
         TracePrintf(1, "Error reading inode in checkEmpty\n");
         return ERROR;
     }
@@ -498,9 +599,9 @@ int checkEmpty(int inode_num) {
 /**
 Gets the type of the node
 */
-int getInodeType(int inode_num) {
+int getInodeType(int inum) {
     struct inode *curr_inode = malloc(sizeof(struct inode));
-    if (readInode(inode_num, curr_inode) == ERROR) {
+    if (readInode(inum, curr_inode) == ERROR) {
         //handler error here
         TracePrintf(0, "Error freeing the inode in getInodeType\n");
         // replyError(message, senderPid);
@@ -514,9 +615,9 @@ int getInodeType(int inode_num) {
 /**
 Gets the type of the node
 */
-int getInodeSize(int inode_num) {
+int getInodeSize(int inum) {
     struct inode *curr_inode = malloc(sizeof(struct inode));
-    if (readInode(inode_num, curr_inode) == ERROR) {
+    if (readInode(inum, curr_inode) == ERROR) {
         //handler error here
         TracePrintf(0, "Error freeing the inode in getInodeType\n");
         // replyError(message, senderPid);
@@ -567,16 +668,16 @@ Basically checks the path and returns the directory inode at the end of the path
 
 void chDirHandler(struct msg *message, int senderPid) {
     TracePrintf(1, "Made it to the chdirhandler\n");
-    int inode_num = checkPath(message);
-    if (inode_num == ERROR) { //error reaching directory or directory does not exist
+    int inum = checkPath(message);
+    if (inum == ERROR) { //error reaching directory or directory does not exist
         replyError(message, senderPid);
         return;
     } else { //gotta check if it is a directory type
         void *buf = malloc(sizeof(struct inode));
-        readInode(inode_num, buf);
+        readInode(inum, buf);
         struct inode *node = (struct inode *)buf;
         if (node->type == INODE_DIRECTORY) {
-            replyWithInodeNum(message, senderPid, inode_num);
+            replyWithInodeNum(message, senderPid, inum);
         } else {
             replyError(message, senderPid);
             return;
@@ -756,11 +857,11 @@ void init() {
             int in_idx;
             for (in_idx = start_index; in_idx < num_inodes_to_read + start_index; in_idx++) {
                 struct inode *node = &inodes[in_idx];
-                int inode_num = ((block_index - 1) * INODESPERBLOCK) + in_idx; //calculate the inode number
+                int inum = ((block_index - 1) * INODESPERBLOCK) + in_idx; //calculate the inode number
                 if (node->type == INODE_FREE) {
                     //the inode is free
                     TracePrintf(1, "Found a free inode!\n");
-                    addFreeInode(inode_num);
+                    addFreeInode(inum);
                 } else {
                     //node is not free, so iterate through its directs and mark their blocks as used
                     int num_blocks = (int) (node->size / BLOCKSIZE) + 1;
@@ -965,21 +1066,21 @@ char *findLastDirName(char *str) {
 /**
 Reads the inode. writes the inode to the buffer
 */
-int readInode(int inode_num, void *buf) {
-    TracePrintf(1, "Reading inode %i\n", inode_num);
+int readInode(int inum, void *buf) {
+    TracePrintf(1, "Reading inode %i\n", inum);
     void *buffer = malloc(SECTORSIZE); //the buffer to read into
-    int block_num = inode_num / (inodes_per_block) + 1;
+    int block_num = inum / (inodes_per_block) + 1;
     int status = ReadSector(block_num, buffer);
     if (status == ERROR) {
         // handle ReadSector failure
         free(buffer);
         return -1;
     }
-    // struct inode *node = ((struct inode *)buffer)[(inode_num - 1) % inodes_per_block];//this should be the node
-    struct inode *node = (struct inode *)((char *)buffer + ((inode_num) % inodes_per_block) * sizeof(struct inode));
+    // struct inode *node = ((struct inode *)buffer)[(inum - 1) % inodes_per_block];//this should be the node
+    struct inode *node = (struct inode *)((char *)buffer + ((inum) % inodes_per_block) * sizeof(struct inode));
     memcpy(buf, node, sizeof(struct inode));
     free(buffer);
-    TracePrintf(1, "Finished reading inode %i\n", inode_num);
+    TracePrintf(1, "Finished reading inode %i\n", inum);
     return 0;
 }
 
@@ -987,7 +1088,7 @@ int readInode(int inode_num, void *buf) {
 Reads the ith direct or indirect block of the inode, returns the block number. returns -1 if error
 */
 
-// int getBlockOfInode(int inode_num, int block_index, void *buf) {
+// int getBlockOfInode(int inum, int block_index, void *buf) {
 
 // }
 
@@ -998,11 +1099,11 @@ otherwise the inode will only be changed in the copy here but not on the file sy
 calculates and returns the inode's (hypothetical) pointer
 */
 
-struct inode *findInodePtr(int inode_num) {
+struct inode *findInodePtr(int inum) {
     void *buffer = malloc(SECTORSIZE); //the buffer to read into
-    int block_num = inode_num / (inodes_per_block) + 1;
+    int block_num = inum / (inodes_per_block) + 1;
     int status = ReadSector(block_num, buffer);
-    TracePrintf(1, "Finding inode pointer for inode %i at block number %i\n", inode_num, block_num);
+    TracePrintf(1, "Finding inode pointer for inode %i at block number %i\n", inum, block_num);
     if (status == ERROR) {
         // handle ReadSector failure
         free(buffer);
@@ -1010,21 +1111,21 @@ struct inode *findInodePtr(int inode_num) {
         //TODO: what to return here?
     }
     //TODO Check this logic compared to readInode
-    // struct inode *node = ((struct inode *)buffer)[(inode_num - 1) % inodes_per_block];//this should be the node
-    struct inode *node = (struct inode *)((char *)buffer + ((inode_num) % inodes_per_block) * sizeof(struct inode));
+    // struct inode *node = ((struct inode *)buffer)[(inum - 1) % inodes_per_block];//this should be the node
+    struct inode *node = (struct inode *)((char *)buffer + ((inum) % inodes_per_block) * sizeof(struct inode));
     return node;
 }
 /**
 Sets fields of new inode. size input does not include size of initial directories
 */
 
-int setNewInode(int inode_num, short type, short nlink, int reuse, int size, int parent_inode_num) {
-    TracePrintf(1, "Setting inode %i with type %i, parent %i\n", inode_num, type, parent_inode_num);
+int setNewInode(int inum, short type, short nlink, int reuse, int size, int parent_inode_num) {
+    TracePrintf(1, "Setting inode %i with type %i, parent %i\n", inum, type, parent_inode_num);
     void *buffer = malloc(SECTORSIZE); //the buffer to read into
     void *start = buffer;
-    int block_num = inode_num / (inodes_per_block) + 1;
+    int block_num = inum / (inodes_per_block) + 1;
     int status = ReadSector(block_num, buffer);
-    TracePrintf(1, "Finding inode pointer for inode %i at block number %i\n", inode_num, block_num);
+    TracePrintf(1, "Finding inode pointer for inode %i at block number %i\n", inum, block_num);
     if (status == ERROR) {
         // handle ReadSector failure
         free(buffer);
@@ -1033,16 +1134,16 @@ int setNewInode(int inode_num, short type, short nlink, int reuse, int size, int
         return -1;
     }
     //TODO Check this logic compared to readInode
-    // struct inode *node = ((struct inode *)buffer)[(inode_num - 1) % inodes_per_block];//this should be the node
-    struct inode *node = (struct inode *)((char *)buffer + ((inode_num) % inodes_per_block) * sizeof(struct inode));
+    // struct inode *node = ((struct inode *)buffer)[(inum - 1) % inodes_per_block];//this should be the node
+    struct inode *node = (struct inode *)((char *)buffer + ((inum) % inodes_per_block) * sizeof(struct inode));
     node->type = type;
     node->nlink = nlink;
     node->reuse = reuse;
     node->size = size;
     node->direct[0] = findFreeBlock();
 
-    writeDirectoryToInode(node, inode_num, inode_num, "."); //TODO: write this method?
-    writeDirectoryToInode(node, inode_num, parent_inode_num, "..");
+    writeDirectoryToInode(node, inum, inum, "."); //TODO: write this method?
+    writeDirectoryToInode(node, inum, parent_inode_num, "..");
     TracePrintf(1, "size of node is %i\n", node->size);
     WriteSector(block_num, start);
     //TODO: set the inode first . and .. to itself and parentinodenum, respectively. 
@@ -1055,21 +1156,21 @@ int setNewInode(int inode_num, short type, short nlink, int reuse, int size, int
 Sets fields of the inode in disk. size input does  include size of initial directories
 */
 
-int writeInodeToDisk(int inode_num, struct inode *inode_to_cpy) {
-    TracePrintf(1, "Setting inode %i with type %i\n", inode_num, inode_to_cpy->type);
+int writeInodeToDisk(int inum, struct inode *inode_to_cpy) {
+    TracePrintf(1, "Setting inode %i with type %i\n", inum, inode_to_cpy->type);
     void *buffer = malloc(SECTORSIZE); //the buffer to read into
     void *start = buffer;
-    int block_num = inode_num / (inodes_per_block) + 1;
+    int block_num = inum / (inodes_per_block) + 1;
     int status = ReadSector(block_num, buffer);
-    TracePrintf(1, "Finding inode pointer for inode %i at block number %i\n", inode_num, block_num);
+    TracePrintf(1, "Finding inode pointer for inode %i at block number %i\n", inum, block_num);
     if (status == ERROR) {
         // handle ReadSector failure
         free(buffer);
         TracePrintf(0, "Error finding inode pointer\n");
     }
     //TODO Check this logic compared to readInode
-    // struct inode *node = ((struct inode *)buffer)[(inode_num - 1) % inodes_per_block];//this should be the node
-    struct inode *node = (struct inode *)((char *)buffer + ((inode_num) % inodes_per_block) * sizeof(struct inode));
+    // struct inode *node = ((struct inode *)buffer)[(inum - 1) % inodes_per_block];//this should be the node
+    struct inode *node = (struct inode *)((char *)buffer + ((inum) % inodes_per_block) * sizeof(struct inode));
     node->type = inode_to_cpy->type;
     node->nlink = inode_to_cpy->nlink;
     node->reuse = inode_to_cpy->reuse;
@@ -1181,7 +1282,7 @@ int findDirectoryEntry(struct inode *curr_inode, int curr_inode_num, char *name)
 }
 
 /**
-Frees the inode dir_entry (set the inode_num field to 0). almost identical to findDirectoryEntry
+Frees the inode dir_entry (set the inum field to 0). almost identical to findDirectoryEntry
 */
 
 int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_to_remove) {
@@ -1273,7 +1374,7 @@ int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inode_t
 /**
 writes a directory to the inode
 */
-int writeDirectoryToInode(struct inode *node, int curr_inode, int inode_num, char *name) {
+int writeDirectoryToInode(struct inode *node, int curr_inode, int inum, char *name) {
 
     int size = node->size;    
     //TODO: need to check if there is space in the current sector before writing to it, else move to next sector
@@ -1297,7 +1398,7 @@ int writeDirectoryToInode(struct inode *node, int curr_inode, int inode_num, cha
     buf = buf + bytes_into_sector; 
     
     struct dir_entry *entry = (struct dir_entry *)buf;
-    entry->inum = inode_num;
+    entry->inum = inum;
     
     // entry->name = name;
     strcpy(entry->name, name);
@@ -1458,7 +1559,7 @@ int findParent(char *name, int curr_directory) {
 /**
 Adds a free inode
 */
-void addFreeInode(int inode_num) { //stolen from previous lab
+void addFreeInode(int inum) { //stolen from previous lab
     
     TracePrintf(1, "Pushing free inode to waiting queue!\n");
     // wrap process as new queue item
@@ -1466,7 +1567,7 @@ void addFreeInode(int inode_num) { //stolen from previous lab
     // new->node = node;
     new->next = NULL;
     new->prev = NULL;
-    new->inode_num = inode_num;
+    new->inum = inum;
 
     // push onto queue
     if (free_nodes_size == 0) {
@@ -1495,12 +1596,12 @@ int getFreeInode() {
         free_nodes_head = nextChild->next;
         free_nodes_head->prev = NULL;
     }
-    TracePrintf(1, "found a free inode! %i\n", nextChild->inode_num);
+    TracePrintf(1, "found a free inode! %i\n", nextChild->inum);
     free_nodes_size--;
 
     //Clean the inode if it is not clean already
 
-    return nextChild->inode_num;
+    return nextChild->inum;
 }
 
 /**
@@ -1532,6 +1633,13 @@ finds the blocknum of the last sector in the inode, else ERROR
 int getLastSector(struct inode *node) {
     int size = node->size;
     int sector_num = size / BLOCKSIZE;
+    return getSector(node, sector_num);
+}
+
+/**
+finds the blocknum of the sector in the inode, else ERROR
+*/
+int getSector(struct inode *node, int sector_num) {
     if (sector_num < NUM_DIRECT) {
         return node->direct[sector_num];
     } else {
@@ -1543,7 +1651,6 @@ int getLastSector(struct inode *node) {
         free(indirect_buf);
         return sectors[sector_num - NUM_DIRECT];
     }
-    
 }
 
 /**
@@ -1565,9 +1672,9 @@ int getPid() {
     return pid;
 }
 
-int replyWithInodeNum(struct msg *message, int pid, int inode_num) {
+int replyWithInodeNum(struct msg *message, int pid, int inum) {
     message->type = REPLYMSG;
-    message->data = inode_num;
+    message->data = inum;
     Reply(message, pid);
     return 0;
 }

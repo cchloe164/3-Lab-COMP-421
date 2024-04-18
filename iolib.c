@@ -43,8 +43,9 @@ int current_directory = ROOTINODE;
 
 struct fd {
     int used; // 0 if free, 1 if in use
+    int type;   // dir or file
     int cur_pos;  // current position inside file
-    int inode_num;  // inode number of file
+    int inum;  // inode number of file
 };
 
 // what are all of these parameters used for?
@@ -56,9 +57,9 @@ struct msg {    // 32-byte all-purpose message
 };
 
 struct ext_msg {
-    void *buf;
+    char content[16];
     int size;
-    int inode_num;
+    int inum;
 };
 
 /* Set up file storage.*/
@@ -69,7 +70,7 @@ void initFileStorage() {
         struct fd *new_fd = malloc(sizeof(struct fd));
         new_fd->used = 0;
         new_fd->cur_pos = 0;
-        new_fd->inode_num = -1;
+        new_fd->inum = -1;
         fd_arr[fd] = new_fd;
     }
 }
@@ -113,8 +114,8 @@ int Open(char *pathname) {
         return ERROR;
     }
 
-    fd_arr[fd]->inode_num = container->data;
-    TracePrintf(0, "Open: inode num %d set.\n", fd_arr[fd]->inode_num);
+    fd_arr[fd]->inum = container->data;
+    TracePrintf(0, "Open: inode num %d set.\n", fd_arr[fd]->inum);
 
     free(container);
     TracePrintf(0, "Open: success.\n");
@@ -171,8 +172,8 @@ int Create(char *pathname) {
     if (container->data == ERMSG) {
         return ERROR;
     }
-    fd_arr[fd]->inode_num = container->data;
-    TracePrintf(0, "Create: inode num %d set.\n", fd_arr[fd]->inode_num);
+    fd_arr[fd]->inum = container->data;
+    TracePrintf(0, "Create: inode num %d set.\n", fd_arr[fd]->inum);
 
     free(container);
     TracePrintf(0, "Create: success.\n");
@@ -191,9 +192,9 @@ int Read(int fd, void *buf, int size) {
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     struct ext_msg *extra_info = malloc(sizeof(struct ext_msg));
-    extra_info->buf = buf;
+    strcpy(extra_info->content, buf);
     extra_info->size = size;
-    extra_info->inode_num = fd_arr[fd]->inode_num;
+    extra_info->inum = fd_arr[fd]->inum;
     container->type = READ;
     container->ptr = extra_info;
 
@@ -210,7 +211,7 @@ int Read(int fd, void *buf, int size) {
 }
 
 int Write(int fd, void *buf, int size) {
-    TracePrintf(0, "WRITEing fd %d...\n", fd);
+    TracePrintf(0, "WRITEing '%s' to fd %d...\n", buf, fd);
     if (fd_arr[fd]->used == 0)
     {
         TracePrintf(0, "Write: file not open.\n");
@@ -220,11 +221,12 @@ int Write(int fd, void *buf, int size) {
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     struct ext_msg *extra_info = malloc(sizeof(struct ext_msg));
-    extra_info->buf = buf;
+    strcpy(extra_info->content, buf);
     extra_info->size = size;
-    extra_info->inode_num = fd_arr[fd]->inode_num;
+    extra_info->inum = fd_arr[fd]->inum;
     container->type = WRITE;
-    container->ptr = extra_info;
+    container->data = fd_arr[fd]->cur_pos;
+    container->ptr = (void *)extra_info;
 
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG)
@@ -235,7 +237,7 @@ int Write(int fd, void *buf, int size) {
     free(container);
     free(extra_info);
     TracePrintf(0, "Write: success.\n");
-    return 0;
+    return container->data;
 }
 
 // int Seek(int fd, int offset, int whence) {
@@ -258,16 +260,19 @@ int Dummy(char *path) { //used to send a dummy message
     return 0;
 }
 
-int MkDir(char *path) { //used to send a dummy message
+int MkDir(char *pathname) { //used to send a dummy message
+    TracePrintf(0, "MKDIRing pathname %s...\n", pathname);
+    if (init_storage == 0)
+    {
+        initFileStorage();
+        init_storage = 1;
+    } 
+
     struct msg *container = malloc(sizeof(struct msg));//TODO: malloc here?
-    // TracePrintf(0, "testset2\n");
     container->type = MKDIR;
-    strcpy(container->content, path);
-    // container->content = path;
+    strcpy(container->content, pathname);
     container->data = current_directory; //data is the directory
 
-    // TracePrintf(0, "Making directory %s\n", path);
-    // TracePrintf(0, "testset2\n");
     Send(container, -FILE_SERVER);
     if (container->type == REPLYMSG) {
         TracePrintf(0, "MkDir: made directory %s\n", container->content);
