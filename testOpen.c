@@ -13,15 +13,16 @@ int main()
     Dummy("testing");
 
     // TEST: Create multiple files
-    // int fd;
-    // fd = Create("a");
-    // TracePrintf(0, "DONE: fd %d\n", fd);
+    int fd;
+    fd = Create("a");
+    TracePrintf(0, "DONE: fd %d\n", fd);
 
-    // fd = Create("/testing/b");
-    // TracePrintf(0, "DONE: fd %d\n", fd);
+    fd = Create("/testing/b");
+    TracePrintf(0, "DONE: fd %d\n", fd);
 
-    // fd = Create("c");
-    // TracePrintf(0, "DONE: fd %d\n", fd);
+    fd = Create("c");
+    TracePrintf(0, "DONE: fd %d\n", fd);
+    Create("c");
 
     // TEST: Create nested directories with files
     // int fd;
