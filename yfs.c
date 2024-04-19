@@ -634,7 +634,7 @@ int resetInodeSize(int inode_num) {
 
 struct ext_msg
 {
-    char content[16];
+    char content[100];
     int size;
     int inum;
 };
@@ -642,7 +642,6 @@ struct ext_msg
 void writeHandler(struct msg *message, int senderPid)
 {
     TracePrintf(0, "Write: extracting info from message\n");
-    // struct ext_msg *temp = (struct ext_msg *)message->ptr;
     struct ext_msg temp;
     CopyFrom(senderPid, &temp, message->ptr, sizeof(struct ext_msg));
     int inum = temp.inum;
@@ -664,70 +663,70 @@ void writeHandler(struct msg *message, int senderPid)
     
     TracePrintf(0, "Write: find sector\n");
     unsigned int sector_i = cur_pos / BLOCKSIZE + 1;    // get index of current block
-    if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int))) {    // check if memory limit exceeded
-        TracePrintf(0, "Write: File is full. Nothing was written.\n");
-        message->data = 0;
-        Reply(message, senderPid);
-        return;
-    }
-    int sector = getSector(node, sector_i);  // get block number
-    // read in sector
-    char *buf1 = malloc(SECTORSIZE);
-    if (ReadSector(sector, buf1) == ERROR)
-    {
-        TracePrintf(0, "Write: ERROR reading sector failed\n");
-        replyError(message, senderPid);
-        return;
-    }
+    void *buf1 = malloc(SECTORSIZE);
+
     TracePrintf(0, "Write: find position in sector\n");
     int sector_pos = cur_pos % BLOCKSIZE;    // get current position within block
     int space_left = BLOCKSIZE - sector_pos;
 
     TracePrintf(0, "Write: start writing...\n");
-    int i = 0;
-    while (i < write_size - 1)
+    int content_left = write_size;
+    // get next sector
+    if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int)))
+    { // check if memory limit exceeded
+        TracePrintf(0, "Write: File is full. Nothing was written.\n");
+        message->data = write_size - content_left;
+        Reply(message, senderPid);
+        return;
+    }
+    int sector = getSector(node, sector_i);    // get block number
+    if (ReadSector(sector, buf1) == ERROR) // set buf
     {
-        TracePrintf(0, "Write: writing %c\n", *content);
-        if (space_left == 0) {
-            if (WriteSector(sector, buf1) == ERROR)    // write to current sector
-            {
-                replyError(message, senderPid);
-                return;
-            }
-            // get next sector
-            sector_i++;
-            if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int))) {    // check if memory limit exceeded
-                TracePrintf(0, "Write: File is full. Nothing was written.\n");
-                message->data = 0;
-                Reply(message, senderPid);
-                return;
-            }
-            sector = getSector(node, sector_i);  // get block number
-            if (ReadSector(sector, buf1) == ERROR)   // set buf
-            {
-                TracePrintf(0, "Write: ERROR reading sector failed\n");
-                replyError(message, senderPid);
-                return;
-            }
-            // reset counters
-            sector_pos = 0;
-            space_left = BLOCKSIZE;
+        TracePrintf(0, "Write: ERROR reading sector failed\n");
+        replyError(message, senderPid);
+        return;
+    }
+    while (content_left > space_left) {
+        memcpy(buf1, content, space_left);
+        TracePrintf(0, "Write: copying %d bytes of '%s' to new sector %d\n", space_left, content, sector_i);
+        if (WriteSector(sector, buf1) == ERROR)
+        {
+            replyError(message, senderPid);
+            return;
         }
+        content_left -= space_left;
+        content += space_left;
+        buf1 += space_left;
 
-        buf1[sector_pos] = *content;
-        i++;
-        sector_pos++;
-        content++;
-        space_left--;
+        // set up if new block/next round needed
+        space_left = BLOCKSIZE;
+        sector_i++;
+        // get next sector
+        if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int)))
+        { // check if memory limit exceeded
+            TracePrintf(0, "Write: File is full. Nothing was written.\n");
+            message->data = write_size - content_left;
+            Reply(message, senderPid);
+            return;
+        }
+        sector = getSector(node, sector_i);    // get block number
+        if (ReadSector(sector, buf1) == ERROR) // set buf
+        {
+            TracePrintf(0, "Write: ERROR reading sector failed\n");
+            replyError(message, senderPid);
+            return;
+        }
     }
 
+    memcpy(buf1, content, content_left);
+    TracePrintf(0, "Write: copying %d bytes of '%s' to final sector %d\n", content_left, content, sector_i);
     if (WriteSector(sector, buf1) == ERROR)
     {
         replyError(message, senderPid);
         return;
     }
 
-    message->data = i + 1;
+    message->data = write_size;
     Reply(message, senderPid);
     return;
 }

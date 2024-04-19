@@ -141,14 +141,35 @@ int main()
     // MkDir("/a/b");
     // ChDir(".");
 
-    // TEST: write to a file
+    // // TEST: write to a large file
     // int fd;
     // fd = Create("a");
     // TracePrintf(0, "DONE: fd %d\n", fd);
 
-    // char *buf = "string";
-    // int size = sizeof("string");
-    // int written = Write(fd, (void *)buf, size);
+    // char buf[] = "Generating long and coherent text is an important but challenging task, particularly for open-ended language generation tasks such as story generation. Despite the success in modeling intra-sentence coherence, existing generation models (e.g., BART) still struggle to maintain a coherent event sequence throughout the generated text.";
+    // int size = sizeof(buf);
+    // int written = Write(fd, (void *)&buf, size);
+    // TracePrintf(0, "DONE: written %d\n", written);
+
+    // // TEST: write nothing to file
+    // int fd;
+    // fd = Create("a");
+    // TracePrintf(0, "DONE: fd %d\n", fd);
+
+    // char buf[] = "";
+    // int size = sizeof(buf);
+    // int written = Write(fd, (void *)&buf, size);
+    // TracePrintf(0, "DONE: written %d\n", written);
+
+    // // TEST: create, close, open, write 
+    // int fd;
+    // fd = Create("a");
+    // TracePrintf(0, "DONE: fd %d\n", fd);
+    // Close(fd);
+    // Open("a");
+    // char buf[] = "string";
+    // int size = sizeof(buf);
+    // int written = Write(fd, (void *)&buf, size);
     // TracePrintf(0, "DONE: written %d\n", written);
 
     // void *buf = malloc(sizeof(char) * 10);

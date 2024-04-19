@@ -71,7 +71,7 @@ struct link_strs { //structure for linking
 
 
 struct ext_msg {
-    char content[16];
+    char content[100];
     int size;
     int inum;
 };
