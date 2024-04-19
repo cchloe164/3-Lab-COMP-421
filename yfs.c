@@ -248,10 +248,16 @@ int main(int argc, char** argv) {
                         break;
                     }
                     // case READ: {
-                    //     TracePrintf(0, "Received SEEK message type\n");
+                    //     TracePrintf(0, "Received READ message type\n");
                     //     readHandler(message, receive);
                     //     break;
                     // }
+                    case SHUTDOWN: {
+                        TracePrintf(0, "Received SHUTDOWN message type. Shutting down.\n");
+                        replyWithInodeNum(message, receive, 0);
+                        Exit(0);
+                        break;
+                    }
                     case DUMMY: {
                         TracePrintf(0, "Received DUMMY message type\n");
                         // mkdirhandler(message);

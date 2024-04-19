@@ -54,6 +54,10 @@ struct seek_info {
     int whence;
     int cur_pos;
 };
+
+struct read_info {
+
+};
 // what are all of these parameters used for?
 struct msg {    // 32-byte all-purpose message
     int type;   // format type?
@@ -484,9 +488,21 @@ int Stat(char *pathname, struct Stat *statbuf) {
     return 0;
 }
 
-// int Sync(void) {
-//     return 0;
-// }
-// int Shutdown(void) {
-//     return 0;
-// }
+int Sync(void) {
+    return 0;
+}
+int Shutdown(void) {
+    Sync();
+    TracePrintf(0, "Shutting down server.\n");
+    struct msg *container = malloc(sizeof(struct msg));
+    container->type = SHUTDOWN;
+    Send(container, -FILE_SERVER);
+    if (container->type == ERMSG) {
+        TracePrintf(0, "Server shutdown failure.\n");
+    } else {
+        TracePrintf(0, "Server shutdown success.\n");
+    }
+    free(container);
+    Exit(0);
+    return 0;
+}
