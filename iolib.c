@@ -56,7 +56,10 @@ struct seek_info {
 };
 
 struct read_info {
-
+    int size;
+    int inum;
+    int cursor;
+    void *buf;
 };
 // what are all of these parameters used for?
 struct msg {    // 32-byte all-purpose message
@@ -209,21 +212,27 @@ int Read(int fd, void *buf, int size) {
 
     // build message
     struct msg *container = malloc(sizeof(struct msg));
-    struct ext_msg *extra_info = malloc(sizeof(struct ext_msg));
-    strcpy(extra_info->content, buf);
-    extra_info->size = size;
-    extra_info->inum = fd_arr[fd]->inum;
-    container->type = READ;
-    container->ptr = extra_info;
+    struct read_info *read_info = malloc(sizeof(struct read_info));
+    // strcpy(extra_info->content, buf);
+    read_info->size = size;
+    read_info->inum = fd_arr[fd]->inum;
+    read_info->buf = buf;
+    read_info->cursor = fd_arr[fd]->cur_pos;
 
-    Send(container, -FILE_SERVER);
+    container->type = READ;
+    container->data = fd_arr[fd]->inum;
+    container->ptr = read_info;
+
+    Send(container, -FILE_SERVER); //should return the updated cursor position in the data field
     if (container->data == ERMSG)
     {
+        TracePrintf(0, "Read: error.\n");
         return ERROR;
     }
+    fd_arr[fd]->cur_pos = container->data; //update the cursor position with the value returned by the read request
 
     free(container);
-    free(extra_info);
+    free(read_info);
     TracePrintf(0, "Read: success.\n");
     return 0;
 }

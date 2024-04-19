@@ -61,7 +61,12 @@ struct seek_info {
     int cur_pos;
 
 };
-
+struct read_info {
+    int size; //the size to read
+    int inum; // the inode num
+    int cursor;
+    void *buf; //the buffer to write to
+};
 struct link_strs { //structure for linking
     //31 if the name is 30 chars and a null
     char old[31];
@@ -120,6 +125,8 @@ int checkPathHelper(char *path, int curr_directory);
 int resetInodeSize(int inode_num);
 void seekHandler(struct msg *message, int senderPid);
 int addNewEmptyBlock(struct inode *node, int block_index);
+void readHandler(struct msg *message, int senderPid);
+
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
 int *freeBlocks;
@@ -247,11 +254,11 @@ int main(int argc, char** argv) {
                         seekHandler(message, receive);
                         break;
                     }
-                    // case READ: {
-                    //     TracePrintf(0, "Received READ message type\n");
-                    //     readHandler(message, receive);
-                    //     break;
-                    // }
+                    case READ: {
+                        TracePrintf(0, "Received READ message type\n");
+                        readHandler(message, receive);
+                        break;
+                    }
                     case SHUTDOWN: {
                         TracePrintf(0, "Received SHUTDOWN message type. Shutting down.\n");
                         replyWithInodeNum(message, receive, 0);
@@ -287,9 +294,95 @@ int main(int argc, char** argv) {
 
 }
 
-// void readHandler(struct msg *message, int senderPid) {
+void readHandler(struct msg *message, int senderPid) {
+    TracePrintf(0, "Made it to the readHandler\n");
+    int curr_inode_num = message->data;
+    struct read_info *info = malloc(sizeof(struct read_info));
     
-// }
+    if (CopyFrom(senderPid, info, message->ptr, sizeof(struct read_info)) == ERROR) {
+        TracePrintf(0, "ERROR copying pointer from in readHandler\n");
+        replyError(message, senderPid);
+        return;
+    }
+    int bytes_to_read = info->size; //size to read
+    int inum = info->inum; //inode num
+    int read_from = info->cursor; //where we read from
+    void *buf = info->buf; // the buffer to write to
+    if (buf == NULL || read_from < 0 || bytes_to_read < 0 || inum <= 0 || curr_inode_num < 1) {
+        //error 
+        TracePrintf(0, "invalid buffer, readfrom, size, or inode num field\n");
+        replyError(message, senderPid);
+        return;
+    }
+    struct inode *node = malloc(sizeof(struct inode));
+
+    if (readInode(curr_inode_num, node) == ERROR) {
+        TracePrintf(0, "ERROR reading inode %i in readhandler\n", curr_inode_num);
+        replyError(message, senderPid);
+        return;
+    }
+    int node_size = node->size;
+    //check if the size goes past the current size. if so, update that value
+    // if (read_from >= node_size) { //read nulls if the cursor is past size
+    //     void *nul_buf = malloc(bytes_to_read);
+    //     memset(nul_buf, '\0', bytes_to_read);
+    //     if (CopyTo(senderPid, buf, nul_buf, bytes_to_write) == ERROR) {
+    //         TracePrintf(0, "Error writing null to the buffer from pid %i\n", senderPid);
+    //         replyError(message, senderPid);
+    //     }
+    // }
+    if (read_from > node_size) {
+        TracePrintf(0, "cannot read past EOF\n");
+        replyError(message, senderPid);
+        return;
+    }
+    if (bytes_to_read + read_from > node_size) {
+        bytes_to_read = node_size - read_from;
+    }
+    //iterate through and read from the blocks, update the pointer
+    
+    void *current_block = malloc(BLOCKSIZE); //the current block we are reading from
+    int cur_block_inode_idx = read_from / BLOCKSIZE; //which block are we in in the inode
+    int pos_in_block = read_from % BLOCKSIZE;
+    int total_bytes_remaining = bytes_to_read; //we decrement from this
+    int last_block = (read_from + bytes_to_read) / BLOCKSIZE;
+
+    int bytes_to_copy = BLOCKSIZE - pos_in_block;
+
+    void *buffer_of_contents = malloc(bytes_to_read); //buffer to collect the contents
+    void *buf_ptr = buffer_of_contents;
+    for (cur_block_inode_idx = read_from / BLOCKSIZE; cur_block_inode_idx <= last_block; cur_block_inode_idx++) {
+        //iterate through each block
+        int cur_block_idx = getSector(node, cur_block_inode_idx); //the actual block
+        //read the sector
+        if (readBlock(cur_block_idx, current_block) == ERROR) {
+            TracePrintf(0, "error reading the block in read\n");
+            replyError(message, senderPid);
+            return;
+        }
+        //copy bytes over
+        //handle case where we are on the last block and there is only part of the rest of the block
+
+        if (total_bytes_remaining < bytes_to_copy) {
+            bytes_to_copy = total_bytes_remaining; //set it to the bytes remaining
+        }
+        //now copy everything over to the buffer
+        memcpy(buf_ptr, (char *)current_block + pos_in_block, bytes_to_copy);
+
+        total_bytes_remaining -= bytes_to_copy;
+        pos_in_block = 0;
+        buf_ptr += bytes_to_copy;
+        bytes_to_copy = BLOCKSIZE;
+    }
+    if (CopyTo(senderPid, buf, buffer_of_contents, bytes_to_read) == ERROR) {
+        TracePrintf(0, "error copying the buffer to the other buffer in read\n");
+        replyError(message, senderPid);
+        return;
+    } //copy to the buffer from our buffer
+
+    replyWithInodeNum(message, senderPid, read_from + bytes_to_read); //reply with new location
+
+}
 
 void dummyHandler(struct msg *message, int senderPid) {
     struct link_strs* paths = malloc(sizeof(struct link_strs));
