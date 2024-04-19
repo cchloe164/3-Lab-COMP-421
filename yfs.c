@@ -247,6 +247,11 @@ int main(int argc, char** argv) {
                         seekHandler(message, receive);
                         break;
                     }
+                    // case READ: {
+                    //     TracePrintf(0, "Received SEEK message type\n");
+                    //     readHandler(message, receive);
+                    //     break;
+                    // }
                     case DUMMY: {
                         TracePrintf(0, "Received DUMMY message type\n");
                         // mkdirhandler(message);
@@ -275,6 +280,10 @@ int main(int argc, char** argv) {
     return 0;
 
 }
+
+// void readHandler(struct msg *message, int senderPid) {
+    
+// }
 
 void dummyHandler(struct msg *message, int senderPid) {
     struct link_strs* paths = malloc(sizeof(struct link_strs));
