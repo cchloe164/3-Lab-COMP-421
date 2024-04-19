@@ -64,7 +64,7 @@ struct link_strs { //structure for linking
     int new_len; //length of the new string
 };
 struct ext_msg {
-    char content[16];
+    char content[100];
     int size;
     int inum;
 };
