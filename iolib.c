@@ -49,6 +49,11 @@ struct fd {
     int inum;  // inode number of file
 };
 
+struct seek_info {
+    int offset;
+    int whence;
+    int cur_pos;
+};
 // what are all of these parameters used for?
 struct msg {    // 32-byte all-purpose message
     int type;   // format type?
@@ -63,6 +68,8 @@ struct link_strs { //structure for linking
     int old_len; //length of the old string
     int new_len; //length of the new string
 };
+
+
 struct ext_msg {
     char content[16];
     int size;
@@ -247,10 +254,35 @@ int Write(int fd, void *buf, int size) {
     return container->data;
 }
 
-// int Seek(int fd, int offset, int whence) {
+int Seek(int fd, int offset, int whence) { //TODO: resume there
+    TracePrintf(0, "SEEKing in fd %d to offset %i, with whence %i...\n", fd, offset, whence);
+    if (fd_arr[fd]->used == 0)
+    {
+        TracePrintf(0, "Write: file not open.\n");
+        return ERROR;
+    }
 
-//     return 0;
-// }
+    // build message
+    struct msg *container = malloc(sizeof(struct msg));
+    struct seek_info *seek_info = malloc(sizeof(struct seek_info));
+    seek_info->offset = offset;
+    seek_info->whence = whence;
+    seek_info->cur_pos = fd_arr[fd]->cur_pos;
+    container->type = SEEK;
+    container->data = fd_arr[fd]->inum;
+    container->ptr = (void *)seek_info;
+
+    Send(container, -FILE_SERVER);
+    if (container->data == ERMSG)
+    {
+        return ERROR;
+    }
+    fd_arr[fd]->cur_pos = container->data;
+    free(container);
+    // free(extra_info);
+    TracePrintf(0, "Seek: success.\n");
+    return container->data;
+}
 
 
 int Unlink(char *pathname) {

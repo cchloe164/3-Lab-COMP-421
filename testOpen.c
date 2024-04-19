@@ -13,15 +13,16 @@ int main()
     Dummy("testing");
 
     // TEST: Create multiple files
-    // int fd;
-    // fd = Create("a");
-    // TracePrintf(0, "DONE: fd %d\n", fd);
+    int fd;
+    fd = Create("a");
+    TracePrintf(0, "DONE: fd %d\n", fd);
 
-    // fd = Create("/testing/b");
-    // TracePrintf(0, "DONE: fd %d\n", fd);
+    fd = Create("/testing/b");
+    TracePrintf(0, "DONE: fd %d\n", fd);
 
-    // fd = Create("c");
-    // TracePrintf(0, "DONE: fd %d\n", fd);
+    fd = Create("c");
+    TracePrintf(0, "DONE: fd %d\n", fd);
+    Create("c");
 
     // TEST: Create nested directories with files
     // int fd;
@@ -141,14 +142,14 @@ int main()
     // ChDir(".");
 
     // TEST: write to a file
-    int fd;
-    fd = Create("a");
-    TracePrintf(0, "DONE: fd %d\n", fd);
+    // int fd;
+    // fd = Create("a");
+    // TracePrintf(0, "DONE: fd %d\n", fd);
 
-    char *buf = "string";
-    int size = sizeof("string");
-    int written = Write(fd, (void *)buf, size);
-    TracePrintf(0, "DONE: written %d\n", written);
+    // char *buf = "string";
+    // int size = sizeof("string");
+    // int written = Write(fd, (void *)buf, size);
+    // TracePrintf(0, "DONE: written %d\n", written);
 
     // void *buf = malloc(sizeof(char) * 10);
     // Read(0, buf, sizeof(char) * 10);

@@ -11,8 +11,10 @@
 #include <comp421/yalnix.h>
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
+#define block_from_size(a) (a / BLOCKSIZE)
 
 #define INODESPERBLOCK BLOCKSIZE / INODESIZE
+#define MAXINODESIZE BLOCKSIZE * (NUM_DIRECT + (BLOCKSIZE / sizeof(int))) //the max size for storage of an inode
 
 #define OPEN 0
 #define CLOSE 1
@@ -51,6 +53,13 @@ struct in_str { //an inode linkedlist class
     int inum;
     struct in_str *next;
     struct in_str *prev;
+};
+
+struct seek_info {
+    int offset;
+    int whence;
+    int cur_pos;
+
 };
 
 struct link_strs { //structure for linking
@@ -108,8 +117,9 @@ char *getPath(struct msg *mesage);
 void linkHandler(struct msg *message, int senderPid);
 void dummyHandler(struct msg *message, int senderPid);
 int checkPathHelper(char *path, int curr_directory);
-
-
+int resetInodeSize(int inode_num);
+void seekHandler(struct msg *message, int senderPid);
+int addNewEmptyBlock(struct inode *node, int block_index);
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
 int *freeBlocks;
@@ -232,6 +242,11 @@ int main(int argc, char** argv) {
                         statHandler(message, receive);
                         break;
                     }
+                    case SEEK: {
+                        TracePrintf(0, "Received SEEK message type\n");
+                        seekHandler(message, receive);
+                        break;
+                    }
                     case DUMMY: {
                         TracePrintf(0, "Received DUMMY message type\n");
                         // mkdirhandler(message);
@@ -268,6 +283,93 @@ void dummyHandler(struct msg *message, int senderPid) {
         replyError(message, senderPid);
     }
     TracePrintf(0, "Received dummy strings %s and %s, lengths %i, %i\n", paths->old, paths->new, paths->old_len, paths->new_len);
+}
+
+/**
+Handles Seek:
+This request changes the current file position of the open file specified by file descriptor number fd .
+ The argument offset specifies a byte offset in the file relative to the position indicated by whence . 
+ The value of offset may be positive, negative, or zero.
+*/
+void seekHandler(struct msg *message, int senderPid) {
+    TracePrintf(0, "Made it to the seekHandler\n");
+    int curr_inode_num = message->data;
+    struct seek_info *info = malloc(sizeof(struct seek_info));
+    if (CopyFrom(senderPid, info, message->ptr, sizeof(struct seek_info)) == ERROR) {
+        TracePrintf(0, "ERROR copying pointer from in seekHandler\n");
+        replyError(message, senderPid);
+        return;
+    }
+    int offset = info->offset;
+    int whence = info->whence;
+    int new_pos = info->cur_pos;
+    int node_size = getInodeSize(curr_inode_num);
+    TracePrintf(1, "Received seek request for inode %i, which is currently at %i. offset %i and whence %i\n", curr_inode_num, new_pos, offset, whence);
+
+    //check whence to edit the cur_pos based on 0, size, or leaving it alone
+    //do if checking, then set the field or int to either the beginning, end, or stays the same
+    if (whence == SEEK_SET) {
+        new_pos = 0;
+    } else if (whence == SEEK_END) {
+        new_pos = node_size;
+    }
+    new_pos = new_pos + offset;
+    //can't seek before the file (if negative offset)
+    if (new_pos < 0) {
+        //error: cur_pos is less than 0
+        TracePrintf(0, "Tried to seek to a negative index \n");
+        replyError(message, senderPid);
+        return;
+    }
+    int highest_byte_in_block = node_size + (BLOCKSIZE - (node_size % BLOCKSIZE));
+    if (new_pos <= highest_byte_in_block) {
+        //just return the current position
+        TracePrintf(0, "Returning from seek with new position %i, which is <= the current highest byte in block %i.\n", new_pos, highest_byte_in_block);
+        replyWithInodeNum(message, senderPid, new_pos); //thi should put the cur_pos in the data field
+        return;
+    }
+    //Hard case: where the pointer is after the size. Fill the gap/find free blocks as necessary, then return the pointer
+    //gotta fill gap with /0s (but don't update the size)
+    struct inode *node = malloc(sizeof(struct inode));
+    if (readInode(curr_inode_num, node) == ERROR) {
+        TracePrintf(0, "Error reading inode %i in seekhandler\n", curr_inode_num);
+        replyError(message, senderPid);
+        return;
+    }
+
+    if (new_pos >= (int) (BLOCKSIZE * (NUM_DIRECT + (BLOCKSIZE / sizeof(int))))) {
+        //we've hit the max inode size
+        TracePrintf(0, "Error setting new position %i in seekhandler. position is too large\n", new_pos);
+        replyError(message, senderPid);
+        return;
+
+    }
+    
+    int new_block = new_pos / BLOCKSIZE;
+    TracePrintf(0, "new_block is %i, new_pos is %i\n", new_block, new_pos);
+    //now write a bunch of nulls, but don't change the size. actually only need to allocate a new free block
+    if (addNewEmptyBlock(node, new_block) == ERROR) {
+        TracePrintf(0, "Error adding empty block to inode %i in seek\n", curr_inode_num);
+        replyError(message, senderPid);
+        return;
+    }
+    if (writeInodeToDisk(curr_inode_num, node) == ERROR) {
+        TracePrintf(0, "Error writing inode %i to disk in seek\n", curr_inode_num);
+        replyError(message, senderPid);
+        return;
+    }
+    //add this to the appropriate place in the 
+    // int bytes_to_write = new_pos - node_size;
+    // int last_block_idx = block_from_size(new_pos); //the last block we need to write
+    // int cur_block_idx = block_from_size(node_size); //the first block we write from
+    // int cur_block = getLastSector(node); //current block to start writing from in the inode
+    // int cur_pos = node_size; //current writing position in the inode
+    // void *null_block = malloc(bytes_to_write); //null block to copy from
+    // memset(null_block, '\0', bytes_to_write); //set the bytes in the null block to null    
+    // int pos_in_block = cur_pos % BLOCKSIZE; //the position in the block that we are writing
+    //gotta send a message back with the new position in the open file in the data field
+    TracePrintf(0, "Returning from seek with new position %i, which is > the current size %i.\n", new_pos, node_size);
+    replyWithInodeNum(message, senderPid, new_pos);
 }
 
 /**
@@ -482,14 +584,18 @@ void createHandler(struct msg *message, int senderPid) {
         // return;
         if (getInodeType(matching_inode) == INODE_REGULAR) {
             new_inode_num = matching_inode;
-            
+            resetInodeSize(new_inode_num);
+        } else {
+            TracePrintf(0, "the inode %i is not a file type. Cannot truncate\n", matching_inode);
+            replyError(message, senderPid);
+            return;
         }
 
     } else {
         // TracePrintf(1, "We are here4\n");
         new_inode_num = getFreeInode();
         TracePrintf(1, "Create: Setting new inode %i with type %i and parent %i\n", new_inode_num, INODE_DIRECTORY, parent_inode_num);
-        setNewInode(new_inode_num, INODE_REGULAR, 1, 0, 0, parent_inode_num); //TODO: change this -1
+        setNewInode(new_inode_num, INODE_REGULAR, 1, 0, 0, parent_inode_num); 
     }
     
     
@@ -501,6 +607,20 @@ void createHandler(struct msg *message, int senderPid) {
     TracePrintf(1, "Create: parent is inode number %i with inode type %i and size %i\n", parent_inode_num, parentInode->type, parentInode->size);
     replyWithInodeNum(message, senderPid, new_inode_num);
     return;
+}
+
+/**
+Resets the inode size (used for Create trunctation)
+*/
+int resetInodeSize(int inode_num) {
+    TracePrintf(1, "Resetting inode %i's size field to 0\n", inode_num);
+    struct inode *node = malloc(sizeof(struct inode));
+    if (readInode(inode_num, node) == ERROR) {
+        TracePrintf(0, "Error reading inode %i in reseatInodeSize\n", inode_num);
+        return ERROR;
+    }
+    node->size = 0;
+    return writeInodeToDisk(inode_num, node);
 }
 
 struct ext_msg
@@ -1247,12 +1367,12 @@ writes the block at index block_index
 */
 
 int writeBlock(int block_index, void *buf) {
-    TracePrintf(1, "Reading block %i\n", block_index);
+    TracePrintf(1, "writing block %i\n", block_index);
     // int in_idx;
     
     int status = WriteSector(block_index, buf);
     if (status == ERROR) {
-        TracePrintf(0, "Error reading sector %i\n", block_index);
+        TracePrintf(0, "Error writing sector %i\n", block_index);
     }
     return 0;
 
@@ -1342,14 +1462,14 @@ int setNewInode(int inum, short type, short nlink, int reuse, int size, int pare
     void *buffer = malloc(SECTORSIZE); //the buffer to read into
     void *start = buffer;
     int block_num = inum / (inodes_per_block) + 1;
-    int status = ReadSector(block_num, buffer);
+    int status = readBlock(block_num, buffer);
     TracePrintf(1, "Finding inode pointer for inode %i at block number %i\n", inum, block_num);
     if (status == ERROR) {
         // handle ReadSector failure
         free(buffer);
         TracePrintf(0, "Error finding inode pointer\n");
         //TODO: what to return here?
-        return -1;
+        return ERROR;
     }
     //TODO Check this logic compared to readInode
     // struct inode *node = ((struct inode *)buffer)[(inum - 1) % inodes_per_block];//this should be the node
@@ -1594,21 +1714,33 @@ writes a directory to the inode
 */
 int writeDirectoryToInode(struct inode *node, int curr_inode, int inum, char *name) {
 
-    int size = node->size;    
-    //TODO: need to check if there is space in the current sector before writing to it, else move to next sector
-    if (size > (NUM_DIRECT * BLOCKSIZE)) {
-
-    }
+    int size = node->size;
     int bytes_into_sector = sectorBytes(node);
-    TracePrintf(2, "%i bytes into the directory sector for write directory to inode\n", bytes_into_sector);
-    
-    // int dirs_into_sector = bytes_into_sector / sizeof(struct dir_entry);
+    int dirs_into_sector = bytes_into_sector / sizeof(struct dir_entry);
     int sector = getLastSector(node);
+    
+    TracePrintf(2, "%i bytes into the directory sector for write directory to inode\n", bytes_into_sector);
+    //: need to check if there is space in the current sector before writing to it, else move to next sector
+    // if (bytes_into_sector + sizeof(struct dir_entry) > BLOCKSIZE) { 
+    //     //block is too small for adding a dir_entry; find the next one
+    //     int bytes_filled = fillLastBlock(node, curr_inode); //fills the last block with nulls, adds a new block, returns the number of bytes written
+    //     if (bytes_filled == ERROR) {
+    //         TracePrintf(0, "Error filling last block for writeDirectoryToInode\n");
+    //         return ERROR;
+    //     }
+    //     //update the size
+    //     size = size + bytes_filled;
+    //     //update the sector number
+    //     sector = getSector(node, sector + 1);
+    //     //update the bytes into sector
+    //     bytes_into_sector = 0;
+    // }
+    
     TracePrintf(2, "%i sectors into the inode for write directory to inode\n");
     void *buf = malloc(SECTORSIZE);
     if (ReadSector(sector, buf) == ERROR) {
         //handle error here
-        return -1;
+        return ERROR;
     }
     void *start = buf;//need to keep track of the start so I can writesector()
     //int inode num in block = ((i * INODESIZE) + Blocksize - 1) / blocksize;
@@ -1620,10 +1752,13 @@ int writeDirectoryToInode(struct inode *node, int curr_inode, int inum, char *na
     
     // entry->name = name;
     strcpy(entry->name, name);
-    node->size = node->size + sizeof(struct dir_entry);
+    node->size = size + sizeof(struct dir_entry); //mindful of the fill potentially (this is why it's not node->size)
     TracePrintf(1, "size of struct dir_entry: %i\n", sizeof(struct dir_entry));
-    TracePrintf(1, "Writing new directory %s with inode num %i to inode %i's sector\n", name, inode_num, curr_inode);
-
+    TracePrintf(1, "Writing new directory %s with inode num %i to inode %i's sector\n", name, inum, curr_inode);
+    //check if the new size is at the end of the block. if so, add a new block
+    if (node->size % BLOCKSIZE == 0) {
+        addNewEmptyBlock(node, dirs_into_sector + 1);
+    }
     if (WriteSector(sector, start) == ERROR) {
         return ERROR;
     }
@@ -1631,6 +1766,66 @@ int writeDirectoryToInode(struct inode *node, int curr_inode, int inum, char *na
         return ERROR;
     }
     return 0;
+}
+
+
+/**
+THIS IS DEFUNCT. NOT TESTED fills the last block with nulls, adds a new block, returns the number of bytes written
+*/
+
+int fillLastBlock(struct inode *node, int node_num) {
+    int size = node->size;
+    int cur_block = getLastSector(node); //current block to start writing from in the inode
+    int cur_block_pos = sectorBytes(node); //current writing position in the inode
+    int bytes_to_write = BLOCKSIZE - cur_block_pos;
+    // void *null_block = malloc(bytes_to_write); //null block to copy from
+    void *block = malloc(BLOCKSIZE);
+    if (readBlock(cur_block, block) == ERROR) {//read the block to the buffer
+        TracePrintf(0, "ERROR reading the block %i in filllastblock\n", cur_block);
+        return ERROR;
+    }
+
+    void *start = block; //store the start
+    block = block + cur_block_pos;
+    memset(block, '\0', bytes_to_write); //set the bytes in the null block to null
+    if (writeBlock(cur_block, start) == ERROR) {
+        TracePrintf(0, "ERROR writing the block %i in filllastblock\n", cur_block);
+        //write the block to memory
+        return ERROR;
+    }
+    int curr_inode_block = size / BLOCKSIZE; //current block # in inode
+    //finally, add a new block and return the number of bytes written
+    if (addNewEmptyBlock(node, curr_inode_block + 1) == ERROR) { //add a new empty block at the end
+        TracePrintf(0, "ERROR adding new block to in filllastblock\n", node_num);
+        return ERROR;
+    }
+    return bytes_to_write;
+}
+
+/**
+Adds an empty block in the direct/indirect list, 
+*/
+int addNewEmptyBlock(struct inode *node, int block_index) {
+    TracePrintf(0, "adding new empty block at index %i\n", block_index);
+    if (block_index < NUM_DIRECT) {
+        int new_block = findFreeBlock();
+        if (new_block == ERROR) {
+            return ERROR;
+        }
+        node->direct[block_index] = new_block;
+        return 0;
+    } else {
+        int *indirect_buf = malloc(SECTORSIZE);
+        if (readBlock(node->indirect, indirect_buf) == ERROR) {
+            return ERROR;
+        }
+        int new_block = findFreeBlock();
+        indirect_buf[block_index] = new_block;
+        writeBlock(node->indirect, indirect_buf);
+        free(indirect_buf);
+        return 0;
+    }
+
 }
 
 /**
@@ -1841,6 +2036,10 @@ int findFreeBlock() {
             TracePrintf(0, "Found free block %d\n", page);
             freeBlocks[page] = BLOCK_USED;
             numFreeBlocks--;
+            //nullify the free block
+            void *buf = malloc(BLOCKSIZE);
+            memset(buf, '\0', BLOCKSIZE);
+            writeBlock(page, buf);
             return page;
         }
     }
@@ -1869,8 +2068,9 @@ int getSector(struct inode *node, int sector_num) {
             return ERROR;
         }
         int *sectors = (int *)indirect_buf;
+        int last_sector = sectors[sector_num - NUM_DIRECT];
         free(indirect_buf);
-        return sectors[sector_num - NUM_DIRECT];
+        return last_sector;
     }
 }
 
