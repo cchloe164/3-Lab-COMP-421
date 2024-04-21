@@ -42,7 +42,7 @@
 #define FREEFILE 0
 
 struct path_str {
-    char _path[30];
+    char _path[MAXPATHNAMELEN];
     int length;
 };
 
@@ -74,8 +74,8 @@ struct read_info {
 };
 struct link_strs { //structure for linking
     //31 if the name is 30 chars and a null
-    char old[31];
-    char new[31];
+    char old[MAXPATHNAMELEN];
+    char new[MAXPATHNAMELEN];
     int old_len;
     int new_len;
 };
@@ -2029,11 +2029,11 @@ int findParent(char *name, int curr_directory) {
     TracePrintf(0, "finding parent inode in string %s\n", name);
 
     //first, parse the name to make sure it is a valid path structure (30 characters or less, with null)
-    char clean[DIRNAMELEN];
-    memset(clean, 0, DIRNAMELEN); //set the clean to 0 for later comparison
+    char clean[MAXPATHNAMELEN];
+    memset(clean, 0, MAXPATHNAMELEN); //set the clean to 0 for later comparison
     int i;
     int null_exists = false;
-    for (i=0; i < DIRNAMELEN; i++) { //iterate through each of the characters in the name, up till 30
+    for (i=0; i < MAXPATHNAMELEN; i++) { //iterate through each of the characters in the name, up till 30
         // clean[i] = name[i]; //copy the char over to the clean string
         if (name[i] == '\0') {   
             null_exists = true;
@@ -2042,7 +2042,7 @@ int findParent(char *name, int curr_directory) {
     }
     if (null_exists == false) {
         // There is no null char in the first 30 of the char name. Check 31th at idx 30. If nott null, invalid path.
-        if (name[DIRNAMELEN] != '\0') {
+        if (name[MAXPATHNAMELEN] != '\0') {
             return ERROR;
         }
     }
@@ -2071,7 +2071,7 @@ int findParent(char *name, int curr_directory) {
         }
     }
     
-    char *tokens[DIRNAMELEN / 2]; //can't have more than DIRNAMELEN / 2 tokens a/a/a/a/a/a/a/
+    char *tokens[MAXPATHNAMELEN / 2]; //can't have more than DIRNAMELEN / 2 tokens a/a/a/a/a/a/a/
     int num_tokens = 0;
     
     // Split clean by "/" characters

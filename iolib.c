@@ -50,7 +50,7 @@ struct fd {
 };
 
 struct path_str {
-    char _path[30]; //idk if this should be bounded
+    char _path[MAXPATHNAMELEN]; //idk if this should be bounded
     int length;
 };
 struct seek_info {
@@ -74,8 +74,8 @@ struct msg {    // 32-byte all-purpose message
 };
 struct link_strs { //structure for linking
     //31 if the name is 30 chars and a null
-    char old[31]; //the old string
-    char new[31]; //the new string
+    char old[MAXPATHNAMELEN]; //the old string
+    char new[MAXPATHNAMELEN]; //the new string
     int old_len; //length of the old string
     int new_len; //length of the new string
 };
