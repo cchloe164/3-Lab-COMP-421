@@ -10,13 +10,15 @@
 int
 main()
 {
-    char dirname[30];
+    // char dirname[30];
     struct dir_entry *entry = malloc(sizeof(struct dir_entry));
     // memset(dirname, 0, 30);
-    
     MkDir("/testing");
     MkDir("/testing/test2");
     MkDir("/testing/test3");
+    int fd = Open("/testing/test3");
+    Read(fd, entry, sizeof(struct dir_entry));
+    TracePrintf(0, "First entry is %s\n", entry->name);
     Create("testing3");
     ChDir("/testing");
     return 0;

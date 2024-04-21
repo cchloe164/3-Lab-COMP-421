@@ -456,8 +456,8 @@ int MkDir(char *pathname) { //used to send a dummy message
     container->ptr = package_path(pathname);
     Send(container, -FILE_SERVER);
     if (container->type == REPLYMSG) {
+        // fd_arr[fd]->inum = container->data;
         TracePrintf(0, "MkDir: made directory %s\n", ((struct path_str *)container->ptr)->_path);
-        TracePrintf(0, "MkDir: success.\n");
         free(container);
         return 0;
     } else if (container->type == ERMSG) {
@@ -484,7 +484,6 @@ int RmDir(char *pathname) {
     container->data = current_directory;
     container->ptr = package_path(pathname);
     // strcpy(container->content, pathname);
-
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG)
     {
