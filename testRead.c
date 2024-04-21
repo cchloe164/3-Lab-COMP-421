@@ -19,6 +19,10 @@ main()
     int fd = Open("/testing/test3");
     Read(fd, entry, sizeof(struct dir_entry));
     TracePrintf(0, "First entry is %s\n", entry->name);
+    Read(fd, entry, sizeof(struct dir_entry));
+    TracePrintf(0, "Second entry is %s\n", entry->name);
+    Read(fd, entry, sizeof(struct dir_entry));
+    TracePrintf(0, "Third entry is %s\n", entry->name);
     Create("testing3");
     ChDir("/testing");
     return 0;

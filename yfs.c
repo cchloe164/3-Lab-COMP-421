@@ -42,7 +42,7 @@
 #define FREEFILE 0
 
 struct path_str {
-    char _path[MAXPATHNAMELEN];
+    char _path[DIRNAMELEN];
     int length;
 };
 
@@ -74,8 +74,8 @@ struct read_info {
 };
 struct link_strs { //structure for linking
     //31 if the name is 30 chars and a null
-    char old[MAXPATHNAMELEN];
-    char new[MAXPATHNAMELEN];
+    char old[DIRNAMELEN];
+    char new[DIRNAMELEN];
     int old_len;
     int new_len;
 };
@@ -2029,28 +2029,36 @@ int findParent(char *name, int curr_directory) {
     TracePrintf(0, "finding parent inode in string %s\n", name);
 
     //first, parse the name to make sure it is a valid path structure (30 characters or less, with null)
-    char clean[MAXPATHNAMELEN];
-    memset(clean, 0, MAXPATHNAMELEN); //set the clean to 0 for later comparison
+    char clean[DIRNAMELEN];
+    TracePrintf(1, "in FindParent\n");
+    memset(clean, 0, DIRNAMELEN); //set the clean to 0 for later comparison
+    TracePrintf(1, "in FindParent\n");
     int i;
     int null_exists = false;
-    for (i=0; i < MAXPATHNAMELEN; i++) { //iterate through each of the characters in the name, up till 30
+    for (i=0; i < DIRNAMELEN; i++) { //iterate through each of the characters in the name, up till 30
         // clean[i] = name[i]; //copy the char over to the clean string
         if (name[i] == '\0') {   
             null_exists = true;
             break;
         }
     }
+    TracePrintf(1, "in FindParent1\n");
     if (null_exists == false) {
         // There is no null char in the first 30 of the char name. Check 31th at idx 30. If nott null, invalid path.
-        if (name[MAXPATHNAMELEN] != '\0') {
+        if (name[DIRNAMELEN] != '\0') {
             return ERROR;
         }
     }
+    TracePrintf(1, "in FindParent2\n");
     strcpy(clean, name);
+    TracePrintf(1, "in FindParent3\n");
     //then, parse into separations by slashes, track number of nodes
     int root = clean[0] == '/'; //is the path from the root
+    TracePrintf(1, "in FindParent4\n");
     struct inode *curr_inode = malloc(sizeof(struct inode)); //stores the current inode
+    TracePrintf(1, "in FindParent5\n");
     int curr_inode_num;
+    TracePrintf(1, "in FindParent6\n");
     if (root) { //if it's the root, set the current inode
         TracePrintf(1, "we are pathfinding from the root\n");
         int read_s = readInode(ROOTINODE, curr_inode);
@@ -2071,7 +2079,7 @@ int findParent(char *name, int curr_directory) {
         }
     }
     
-    char *tokens[MAXPATHNAMELEN / 2]; //can't have more than DIRNAMELEN / 2 tokens a/a/a/a/a/a/a/
+    char *tokens[DIRNAMELEN / 2]; //can't have more than DIRNAMELEN / 2 tokens a/a/a/a/a/a/a/
     int num_tokens = 0;
     
     // Split clean by "/" characters

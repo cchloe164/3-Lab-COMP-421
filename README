@@ -1,0 +1,23 @@
+Ryan Wang rzw1
+Chloe Chen cc126
+
+
+The majority of our project should work. See "known bugs" section below this section for the known bugs. Thanks!: 
+
+*Open appropriately opens the file named by pathname. If the file exists, this request returns a file de- scriptor number that can be used for future requests on this opened file; the file descriptor number assigned for this newly open file is the lowest available unused file descriptor. It can open directories, and the read/write cursor position starts at 0. 
+
+*Close appropriately  closes the open file specified by the file descriptor number fd . If fd is not the descriptor
+number of a file currently open in this process, this request returns ERROR; otherwise, it returns 0.
+
+*Create creates and opens the new file named by pathname, after checking if all directories in the named pathname already exist. If the named file already exists, this request instead truncates the size of the existing file to 0 without incrementing the reuse count. On success, this request returns a file descriptor number that can be used for future requests on this open file. Otherwise, this request returns ERROR. If the Create is successful, the current position for Read or Write operations on this file descriptor begins at position 0. Within a process, each successful call to Open or Create returns a new, unique file descriptor number for the open file. Each such instance of a file descriptor open to this file thus has its own, separate current position within the file.
+
+*Read appropriately reads data from an open file, beginning at the current position in the file as represented by the given file descriptor fd. The argument fd specifies the file descriptor number of the file to be read, buf specifies the address of the buffer in the requesting process into which to perform the read, and size is the number of bytes to be read from the file.
+
+
+Known bugs:
+
+while the 
+Cacheing is currently not implemented for inodes or for the blocks as of the writing of this README. The reuse count, while incremented every time an inode is reused, we do not check if the inode’s current reuse count for some request does not match the reuse count that the file had when it was opened. 
+
+
+Thanks!
