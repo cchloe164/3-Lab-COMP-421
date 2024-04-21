@@ -49,6 +49,10 @@ struct fd {
     int inum;  // inode number of file
 };
 
+struct path_str {
+    char _path[30]; //idk if this should be bounded
+    int length;
+};
 struct seek_info {
     int offset;
     int whence;
@@ -96,6 +100,16 @@ void initFileStorage() {
     }
 }
 
+struct path_str *package_path(char *path) {
+    // TracePrintf(0, "Packaging the path %s\n", path);
+    struct path_str *path_str = malloc(sizeof(path_str));
+    strcpy(path_str->_path, path);
+    path_str->length = strlen(path);
+    TracePrintf(0, "packaged the path %s\n", path_str->_path);
+    return path_str;
+
+}
+
 /* Return free file descriptor. -1 if storage is full.*/
 int findFreeFD() {
     int fd;
@@ -115,6 +129,10 @@ int findFreeFD() {
 */
 int Open(char *pathname) {
     TracePrintf(0, "OPENing file %s...\n", pathname);
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = OPEN;
@@ -128,7 +146,8 @@ int Open(char *pathname) {
     fd_arr[fd]->used = 1; 
     fd_arr[fd]->cur_pos = 0;
 
-    strcpy(container->content, pathname);
+    // strcpy(container->content, pathname);
+    container->ptr = package_path(pathname);
     container->data = current_directory;
     Send(container, -FILE_SERVER); // blocked here waiting for reply
     if (container->data == ERMSG) {
@@ -176,7 +195,6 @@ int Create(char *pathname) {
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = CREATE;
-
     // check if there is space in storage
     int fd = findFreeFD();
     if (fd == -1)
@@ -187,8 +205,9 @@ int Create(char *pathname) {
     fd_arr[fd]->used = 1;
     fd_arr[fd]->cur_pos = 0;
 
-    strcpy(container->content, pathname);
+    // strcpy(container->content, pathname);
     container->data = current_directory;
+    container->ptr = package_path(pathname);
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG) {
         return ERROR;
@@ -205,6 +224,10 @@ int Create(char *pathname) {
 
 int Read(int fd, void *buf, int size) {
     TracePrintf(0, "READing fd %d...\n", fd);
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     if (fd_arr[fd]->used == 0) {
         TracePrintf(0, "Read: file not open.\n");
         return ERROR;
@@ -239,6 +262,10 @@ int Read(int fd, void *buf, int size) {
 
 int Write(int fd, void *buf, int size) {
     TracePrintf(0, "WRITEing '%s' to fd %d...\n", buf, fd);
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     if (fd_arr[fd]->used == 0)
     {
         TracePrintf(0, "Write: file not open.\n");
@@ -269,6 +296,10 @@ int Write(int fd, void *buf, int size) {
 
 int Seek(int fd, int offset, int whence) { //TODO: resume there
     TracePrintf(0, "SEEKing in fd %d to offset %i, with whence %i...\n", fd, offset, whence);
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     if (fd_arr[fd]->used == 0)
     {
         TracePrintf(0, "Write: file not open.\n");
@@ -300,13 +331,18 @@ int Seek(int fd, int offset, int whence) { //TODO: resume there
 
 int Unlink(char *pathname) {
     TracePrintf(0, "Unlink: unlinking path %s\n", pathname);
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     struct msg *container = malloc(sizeof(struct msg));
     container->type = UNLINK;
     container->data = current_directory;
-    strcpy(container->content, pathname);
+    // strcpy(container->content, pathname);
+    container->ptr = package_path(pathname);
     Send(container, -FILE_SERVER);
     if (container->type == REPLYMSG) {
-        TracePrintf(0, "Unlink: made directory %s\n", container->content);
+        TracePrintf(0, "Unlink: made directory %s\n", ((struct path_str *)container->ptr)->_path);
         TracePrintf(0, "Unlink: success.\n");
         free(container);
         return 0;
@@ -323,6 +359,10 @@ int Unlink(char *pathname) {
 }
 int Link(char *oldname, char *newname) {
     TracePrintf(0, "Link: linking old path %s to new path %s\n", oldname, newname);
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     struct msg *container = malloc(sizeof(struct msg));
     container->type = LINK;
     container->data = current_directory;
@@ -336,7 +376,7 @@ int Link(char *oldname, char *newname) {
     container->ptr = strs;
     Send(container, -FILE_SERVER);
     if (container->type == REPLYMSG) {
-        TracePrintf(0, "Link: made directory %s\n", container->content);
+        TracePrintf(0, "Link: made directory %s\n", ((struct path_str *)container->ptr)->_path);
         TracePrintf(0, "Link: success.\n");
         free(container);
         return 0;
@@ -352,6 +392,10 @@ int Link(char *oldname, char *newname) {
 
 int Dummy2(char *oldname, char *newname) {
     TracePrintf(0, "Dummy: sending old path %s and new path %s\n", oldname, newname);
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     struct msg *container = malloc(sizeof(struct msg));
     container->type = DUMMY2;
     container->data = current_directory;
@@ -382,6 +426,10 @@ int Dummy2(char *oldname, char *newname) {
 int Dummy(char *path) { //used to send a dummy message
     TracePrintf(0, "dummy: message sending.\n");
     struct msg *container = malloc(sizeof(struct msg));//TODO: malloc here?
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     TracePrintf(0, "testset2\n");
     container->type = DUMMY;
 
@@ -403,12 +451,12 @@ int MkDir(char *pathname) { //used to send a dummy message
 
     struct msg *container = malloc(sizeof(struct msg));//TODO: malloc here?
     container->type = MKDIR;
-    strcpy(container->content, pathname);
+    // strcpy(container->content, pathname);
     container->data = current_directory; //data is the directory
-
+    container->ptr = package_path(pathname);
     Send(container, -FILE_SERVER);
     if (container->type == REPLYMSG) {
-        TracePrintf(0, "MkDir: made directory %s\n", container->content);
+        TracePrintf(0, "MkDir: made directory %s\n", ((struct path_str *)container->ptr)->_path);
         TracePrintf(0, "MkDir: success.\n");
         free(container);
         return 0;
@@ -426,12 +474,16 @@ int MkDir(char *pathname) { //used to send a dummy message
 
 int RmDir(char *pathname) {
     TracePrintf(0, "RMDIRing pathname %s...\n", pathname);
-
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = RMDIR;
     container->data = current_directory;
-    strcpy(container->content, pathname);
+    container->ptr = package_path(pathname);
+    // strcpy(container->content, pathname);
 
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG)
@@ -447,6 +499,10 @@ int RmDir(char *pathname) {
 
 int ChDir(char *pathname) {
     TracePrintf(0, "CHDIRing pathname '%s'...\n", pathname);
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     // TracePrintf(0, "here1");
     // build message
     struct msg *container = malloc(sizeof(struct msg));
@@ -454,8 +510,9 @@ int ChDir(char *pathname) {
     container->type = CHDIR;
     // TracePrintf(0, "here3");
     container->data = current_directory;
+    container->ptr = package_path(pathname);
     // TracePrintf(0, "here2");
-    strcpy(container->content, pathname);
+    // strcpy(container->content, pathname);
     // TracePrintf(0, "here6");
     Send(container, -FILE_SERVER);
     // TracePrintf(0, "here9");
@@ -474,12 +531,17 @@ int ChDir(char *pathname) {
 
 int Stat(char *pathname, struct Stat *statbuf) {
     TracePrintf(0, "STATing pathname %s...\n", pathname);
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
 
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     container->type = STAT;
     container->data = current_directory;
-    strcpy(container->content, pathname);
+    // strcpy(container->content, pathname);
+    container->ptr = package_path(pathname);
 
     Send(container, -FILE_SERVER);
     if (container->data == ERMSG)
@@ -498,6 +560,10 @@ int Stat(char *pathname, struct Stat *statbuf) {
 }
 
 int Sync(void) {
+    if (init_storage == 0) {
+        initFileStorage();
+        init_storage = 1;
+    }
     return 0;
 }
 int Shutdown(void) {

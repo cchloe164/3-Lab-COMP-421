@@ -41,6 +41,11 @@
 #define REPLYMSG -3
 #define FREEFILE 0
 
+struct path_str {
+    char _path[30];
+    int length;
+};
+
 struct msg { //Dummy message structure from the given PDF
     int type; 
     int data;
@@ -106,7 +111,7 @@ int replyWithInodeNum(struct msg *message, int pid, int inum);
 void chDirHandler(struct msg *message, int senderPid);
 void createHandler(struct msg *message, int senderPid);
 void statHandler(struct msg *message, int senderPid);
-int checkPath(struct msg *message);
+int checkPath(struct msg *message, int senderPid);
 void rmDirHandler(struct msg *message, int senderPid);
 void prepFree(struct inode *curr_inode);
 
@@ -118,7 +123,7 @@ int freeInode(int matching_inode_num);
 int writeBlock(int block_index, void *buf);
 
 void unlinkHandler(struct msg *message, int senderPid);
-char *getPath(struct msg *mesage);
+char *getPath(struct msg *mesage, int senderPid);
 void linkHandler(struct msg *message, int senderPid);
 void dummyHandler(struct msg *message, int senderPid);
 int checkPathHelper(char *path, int curr_directory);
@@ -126,6 +131,7 @@ int resetInodeSize(int inode_num);
 void seekHandler(struct msg *message, int senderPid);
 int addNewEmptyBlock(struct inode *node, int block_index);
 void readHandler(struct msg *message, int senderPid);
+int addFreeBlock(int block_num);
 
 int numBlocks;
 int numFreeBlocks; //the number of free blocks
@@ -163,7 +169,7 @@ int main(int argc, char** argv) {
     int server_id = Register(FILE_SERVER);
     if (server_id != 0) {
         TracePrintf(0, "Error registering main process \n");
-        return -1;
+        return ERROR;
     }
     init(); //must format the file system on the disk before running the server
     if (argc > 1) {
@@ -354,8 +360,11 @@ void readHandler(struct msg *message, int senderPid) {
     for (cur_block_inode_idx = read_from / BLOCKSIZE; cur_block_inode_idx <= last_block; cur_block_inode_idx++) {
         //iterate through each block
         int cur_block_idx = getSector(node, cur_block_inode_idx); //the actual block
-        //read the sector
-        if (readBlock(cur_block_idx, current_block) == ERROR) {
+        //TODO: check if the sector exists
+        if (cur_block_idx == 0) {
+            //the block doesn't exist yet. we are in a gap, so need to write '\0'
+            memset(current_block, '\0', BLOCKSIZE);
+        } else if (readBlock(cur_block_idx, current_block) == ERROR) { //read the sector
             TracePrintf(0, "error reading the block in read\n");
             replyError(message, senderPid);
             return;
@@ -413,7 +422,12 @@ void seekHandler(struct msg *message, int senderPid) {
     int new_pos = info->cur_pos;
     int node_size = getInodeSize(curr_inode_num);
     TracePrintf(1, "Received seek request for inode %i, which is currently at %i. offset %i and whence %i\n", curr_inode_num, new_pos, offset, whence);
-
+    if (curr_inode_num < 1 || (whence != SEEK_SET && whence != SEEK_END && whence != SEEK_CUR)) {
+        //error 
+        TracePrintf(0, "invalid inode num\n");
+        replyError(message, senderPid);
+        return;
+    }
     //check whence to edit the cur_pos based on 0, size, or leaving it alone
     //do if checking, then set the field or int to either the beginning, end, or stays the same
     if (whence == SEEK_SET) {
@@ -569,7 +583,7 @@ void unlinkHandler(struct msg *message, int sender_pid) {
     //check path    
     TracePrintf(1, "in unlink Handler\n");
 
-    int node_num = checkPath(message);
+    int node_num = checkPath(message, sender_pid);
     int curr_directory = message->data;
     if (node_num == ERROR) {
         TracePrintf(0, "ERROR: can't find node %i in unlinkHandler\n", node_num);
@@ -594,7 +608,7 @@ void unlinkHandler(struct msg *message, int sender_pid) {
 
     //remove entry from parent (like removedirectory. think we call freeDirectory() here)
     struct inode *parent_node = malloc(sizeof(struct inode));
-    char *path = getPath(message);
+    char *path = getPath(message, sender_pid);
     int parent_inode_num = findParent(path, curr_directory);
     if (parent_inode_num == ERROR) {
         TracePrintf(0, "ERROR: Can't find a parent, path %s\n",path);
@@ -632,10 +646,12 @@ void unlinkHandler(struct msg *message, int sender_pid) {
 handles open
 */
 void openHandler(struct msg *message, int sender_pid) {
-    TracePrintf(0, "Received pathname %s\tcur dir %d\tpid %d\n", message->content, message->data, sender_pid);
-    int inum = checkPath(message);
+
+    TracePrintf(0, "Received pathname %s\tcur dir %d\tpid %d\n", getPath(message, sender_pid), message->data, sender_pid);
+    int inum = checkPath(message, sender_pid);
     if (inum == ERROR)
     {
+        TracePrintf(0, "ERROR Opening\n");
         replyError(message, sender_pid);
         return;
     }
@@ -652,7 +668,7 @@ void createHandler(struct msg *message, int senderPid) {
     //go down the nodes from the root until get to what you're creating, then add to the directory
         //gotta go down the inodes from the root until you get to the parent directory, then add a new struct directory to the inode and increment size
     //also update the parent inode size
-    char *path = message->content;
+    char *path = getPath(message, senderPid);
     TracePrintf(0, "Create: pathname %s\n", path);
     int curr_directory = message->data;
     int parent_inode_num = findParent(path, curr_directory);
@@ -778,7 +794,7 @@ void writeHandler(struct msg *message, int senderPid)
         Reply(message, senderPid);
         return;
     }
-    int sector = getSector(node, sector_i);    // get block number
+    int sector = getSector(node, sector_i);    // get block number RW note: I'm not sure why we're reading the sector here. What if we need to write to new sector?
     if (ReadSector(sector, buf1) == ERROR) // set buf
     {
         TracePrintf(0, "Write: ERROR reading sector failed\n");
@@ -838,7 +854,7 @@ On success, this request returns 0; on any error, the value ERROR is returned.
 */
 
 void statHandler(struct msg *message, int senderPid) {
-    int inum = checkPath(message);
+    int inum = checkPath(message, senderPid);
     if (inum == ERROR) { //error reaching directory or directory does not exist
         replyError(message, senderPid);
         return;
@@ -868,7 +884,7 @@ void rmDirHandler(struct msg *message, int senderPid) {
 
         //go down the nodes from the root until get to what you're creating, then check that entry
     //gotta go down the inodes from the root until you get to the parent directory
-    char *path = message->content;
+    char *path = getPath(message, senderPid);
     int curr_directory = message->data;
     if (strcmp(".", path) == 0 || strcmp("..", path) == 0) {
         TracePrintf(0, "ERROR: trying to remove . or ..\n");
@@ -876,7 +892,7 @@ void rmDirHandler(struct msg *message, int senderPid) {
         return;
     } 
     //TODO: check if the path contains a /. or /..
-    if (checkPath(message) == curr_directory) {
+    if (checkPath(message, senderPid) == curr_directory) {
         //can't remove yourself
         TracePrintf(0, "ERROR: can't remove yourself\n");
         replyError(message, senderPid);
@@ -1082,21 +1098,54 @@ Prepares the inode to be freed. Sets all fields to corresponding free values
 
 void prepFree(struct inode *curr_inode) {
     //set the fields of the free inode (in the buffer), then write it to disk with updates
+
+    int num_blocks_to_remove = (curr_inode->size / BLOCKSIZE) + 1;
     curr_inode->type = INODE_FREE;
     curr_inode->nlink = 0;
     curr_inode->reuse = curr_inode->reuse + 1;
     curr_inode->size = 0;
     //TODO: check direct and indirect fields here and free their blocks
+    int i;
+    int *indirect_buf = malloc(SECTORSIZE);
+    if (curr_inode->indirect != 0) {
+        ReadSector(curr_inode->indirect, indirect_buf);
+    }
+    for (i = 0; i < num_blocks_to_remove; i++) {
+        if (i < NUM_DIRECT) {
+            if (curr_inode->direct[i] != 0) {
+            //free the block
+                addFreeBlock(i);
+            }
+        } else {
+            //we are indirect block
+            if (curr_inode->indirect != 0) {
+            //indirect is not allocated; thus, we are in null territory
+                if (indirect_buf[i] != 0) {
+                    addFreeBlock(i);
+                }
+            }
+            
+            
+        }
+        
+    }
+    free(indirect_buf);
     return;
 }
 
+int addFreeBlock(int block_num) {
+    freeBlocks[block_num] = BLOCK_FREE;
+    numFreeBlocks += 1;
+    return 0;
+
+}
 /**
 Basically checks the path and returns the directory inode at the end of the path if it exists/is valid. iolib should change the directory to this inode
 */
 
 void chDirHandler(struct msg *message, int senderPid) {
     TracePrintf(1, "Made it to the chdirhandler\n");
-    int inum = checkPath(message);
+    int inum = checkPath(message, senderPid);
     if (inum == ERROR) { //error reaching directory or directory does not exist
         replyError(message, senderPid);
         return;
@@ -1119,7 +1168,7 @@ will Reply with messages that contain useful contents for iolib maintenance
 void mkDirHandler(struct msg *message, int senderPid) {
     //gotta go down the inodes from the root until you get to the parent directory, then add a new struct directory to the inode and increment size
     //also update the parent inode size
-    char *path = message->content;
+    char *path = getPath(message, senderPid);
     int curr_directory = message->data;
     int parent_inode_num = findParent(path, curr_directory);
     if (parent_inode_num == ERROR) {
@@ -1328,10 +1377,36 @@ void init() {
 Gets the path
 */
 
-char *getPath(struct msg *message) {
-    return message->content;
+char *getPath(struct msg *message, int senderPid) {
+    struct path_str *paths = malloc(sizeof(struct path_str));
+    if (CopyFrom(senderPid, paths, message->ptr, sizeof(struct link_strs)) == ERROR) {
+        TracePrintf(0, "ERROR copying from in getPath\n");
+    }
+    char *new_path = paths->_path;
+    TracePrintf(1, "received path %s\n", new_path);
+    return paths->_path;
 }
 
+/*8
+char clean[DIRNAMELEN];
+    memset(clean, 0, DIRNAMELEN); //set the clean to 0 for later comparison
+    int i;
+    int null_exists = false;
+    for (i=0; i < DIRNAMELEN; i++) { //iterate through each of the characters in the name, up till 30
+        // clean[i] = name[i]; //copy the char over to the clean string
+        if (name[i] == '\0') {   
+            null_exists = true;
+            break;
+        }
+    }
+    if (null_exists == false) {
+        // There is no null char in the first 30 of the char name. Check 31th at idx 30. If nott null, invalid path.
+        if (name[DIRNAMELEN] != '\0') {
+            return ERROR;
+        }
+    }
+    strcpy(clean, name);
+*/
 /**
 The innards of checkPath, because we needed to customize for linking (different message contents)
 */
@@ -1412,15 +1487,12 @@ int checkPathHelper(char *path, int curr_directory) {
 Checks the path contained in the message's contents. returns the inode number if the path is valid, else ERROR if anything else. 
 copied from top of createhandler / mkdirhandler (they should be the same)
 */
-int checkPath(struct msg *message) { //currently a wrapper around checkPath
+int checkPath(struct msg *message, int senderPid) { //currently a wrapper around checkPath
     //go down the nodes from the root until get to what you're creating, then check that entry
     //gotta go down the inodes from the root until you get to the parent directory
-    char *path = getPath(message);
+    char *path = getPath(message, senderPid);
     int curr_directory = message->data;
     return checkPathHelper(path, curr_directory);
-
-
-
 }
 /**
 returns the number of bytes into the last sector
@@ -1519,7 +1591,7 @@ int readInode(int inum, void *buf) {
     if (status == ERROR) {
         // handle ReadSector failure
         free(buffer);
-        return -1;
+        return ERROR;
     }
     // struct inode *node = ((struct inode *)buffer)[(inum - 1) % inodes_per_block];//this should be the node
     struct inode *node = (struct inode *)((char *)buffer + ((inum) % inodes_per_block) * sizeof(struct inode));
@@ -1586,6 +1658,10 @@ int setNewInode(int inum, short type, short nlink, int reuse, int size, int pare
     node->reuse = reuse;
     node->size = size;
     node->direct[0] = findFreeBlock();
+    if (node->direct[0] ==  ERROR) {
+        //error finding free block
+        return ERROR;
+    }
 
     writeDirectoryToInode(node, inum, inum, "."); //TODO: write this method?
     writeDirectoryToInode(node, inum, parent_inode_num, "..");
@@ -1922,11 +1998,21 @@ int addNewEmptyBlock(struct inode *node, int block_index) {
         node->direct[block_index] = new_block;
         return 0;
     } else {
+        if (node->indirect == 0) {
+            //no indirect block yet. allocate a new one
+            node->indirect = findFreeBlock();
+            if (node->indirect == ERROR) {
+                return ERROR; 
+            }
+        }
         int *indirect_buf = malloc(SECTORSIZE);
         if (readBlock(node->indirect, indirect_buf) == ERROR) {
             return ERROR;
         }
         int new_block = findFreeBlock();
+        if (new_block == ERROR) {
+            return ERROR;
+        }
         indirect_buf[block_index] = new_block;
         writeBlock(node->indirect, indirect_buf);
         free(indirect_buf);
@@ -1970,7 +2056,7 @@ int findParent(char *name, int curr_directory) {
         int read_s = readInode(ROOTINODE, curr_inode);
         if (read_s == ERROR) {
             TracePrintf(0, "error reading root inode in path validation\n");
-            return -1;
+            return ERROR;
         }
         curr_inode_num = ROOTINODE;
     } else {
@@ -1981,7 +2067,7 @@ int findParent(char *name, int curr_directory) {
         curr_inode_num = curr_directory;
         if (read_s == ERROR) {
             TracePrintf(0, "error reading relative inode in path validation\n");
-            return -1;
+            return ERROR;
         }
     }
     
@@ -2134,7 +2220,7 @@ finds a block from the free list and removes it. returns the block number
 int findFreeBlock() {
     int page;
     if (numFreeBlocks == 0) {
-        return -1;
+        return ERROR;
     }
     for (page = 0; page < numBlocks; page++)
     {
@@ -2151,7 +2237,7 @@ int findFreeBlock() {
         }
     }
     TracePrintf(0, "ERROR: No free block found!\n");
-    return -1;
+    return ERROR;
 }
 
 /**
@@ -2160,16 +2246,20 @@ finds the blocknum of the last sector in the inode, else ERROR
 int getLastSector(struct inode *node) {
     int size = node->size;
     int sector_num = size / BLOCKSIZE;
-    return getSector(node, sector_num);
+    return getSector(node, sector_num); //the last sector shouldn't be 0, because there should be contents
 }
 
 /**
-finds the blocknum of the sector in the inode, else ERROR
+finds the blocknum of the sector in the inode, else 0 (not allocated)
 */
 int getSector(struct inode *node, int sector_num) {
     if (sector_num < NUM_DIRECT) {
         return node->direct[sector_num];
     } else {
+        if (node->indirect == 0) {
+            //indirect is not allocated; thus, we are in null territory
+            return 0;
+        }
         void *indirect_buf = malloc(SECTORSIZE);
         if (ReadSector(node->indirect, indirect_buf) == ERROR) {
             return ERROR;
