@@ -116,7 +116,7 @@ void rmDirHandler(struct msg *message, int senderPid);
 void prepFree(struct inode *curr_inode);
 int fillLastBlock(struct inode *node, int node_num);
 
-    int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inum);
+int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inum);
 int checkEmpty(int inum);
 int getInodeType(int inum);
 int getInodeSize(int inum);
@@ -302,7 +302,7 @@ int main(int argc, char** argv) {
 }
 
 void readHandler(struct msg *message, int senderPid) {
-    TracePrintf(0, "Made it to the readHandler\n");
+    TracePrintf(0, "Read: Reading in bytes...\n");
     int curr_inode_num = message->data;
     struct read_info *info = malloc(sizeof(struct read_info));
     
@@ -356,12 +356,14 @@ void readHandler(struct msg *message, int senderPid) {
 
     int bytes_to_copy = BLOCKSIZE - pos_in_block;
 
+    TracePrintf(0, "block inode idx=%d\tpos in block=%d\tlast block=%d\tbytes to copy=%d\n", cur_block_inode_idx, pos_in_block, last_block, bytes_to_copy);
+
     void *buffer_of_contents = malloc(bytes_to_read); //buffer to collect the contents
     void *buf_ptr = buffer_of_contents;
     for (cur_block_inode_idx = read_from / BLOCKSIZE; cur_block_inode_idx <= last_block; cur_block_inode_idx++) {
         //iterate through each block
         int cur_block_idx = getSector(node, cur_block_inode_idx); //the actual block
-        //TODO: check if the sector exists
+        TracePrintf(0, "block index: %d\n", cur_block_idx);
         if (cur_block_idx == 0) {
             //the block doesn't exist yet. we are in a gap, so need to write '\0'
             memset(current_block, '\0', BLOCKSIZE);
@@ -378,6 +380,7 @@ void readHandler(struct msg *message, int senderPid) {
         }
         //now copy everything over to the buffer
         memcpy(buf_ptr, (char *)current_block + pos_in_block, bytes_to_copy);
+        TracePrintf(0, "WHAT'S IN THE BUFFER: %s\n", current_block);
 
         total_bytes_remaining -= bytes_to_copy;
         pos_in_block = 0;
@@ -755,6 +758,9 @@ struct write_info
     int inum;
 };
 
+/**
+ * Return next block number.
+*/
 int nextSector(struct inode *node, unsigned int sector_i, int *content_left)
 {
     if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int)))
@@ -767,7 +773,7 @@ int nextSector(struct inode *node, unsigned int sector_i, int *content_left)
     }
     else
     {
-        return getSector(node, sector_i); // get block number RW note: I'm not sure why we're reading the sector here. What if we need to write to new sector?
+        return getSector(node, sector_i); 
     }
 }
 
@@ -797,6 +803,7 @@ void writeHandler(struct msg *message, int senderPid)
     TracePrintf(0, "Write: find sector\n");
     unsigned int sector_i = cur_pos / BLOCKSIZE + 1;    // get index of current block
     void *buf1 = malloc(SECTORSIZE);
+    void *start = buf1;
 
     TracePrintf(0, "Write: find position in sector\n");
     int sector_pos = cur_pos % BLOCKSIZE;    // get current position within block
@@ -808,9 +815,11 @@ void writeHandler(struct msg *message, int senderPid)
     int sector = nextSector(node, sector_i, &content_left);
     
     while (content_left > space_left) {
-        memcpy(buf1, content, space_left);
+        TracePrintf(0, "Write: Sector %d current content: %s\n", sector_i, start);
         TracePrintf(0, "Write: copying %d bytes of '%s' to new sector %d\n", space_left, content, sector_i);
-        if (WriteSector(sector, buf1) == ERROR)
+        memcpy(buf1, content, space_left);
+
+        if (WriteSector(sector, start) == ERROR)
         {
             replyError(message, senderPid);
             return;
@@ -829,7 +838,8 @@ void writeHandler(struct msg *message, int senderPid)
 
     memcpy(buf1, content, content_left);
     TracePrintf(0, "Write: copying %d bytes of '%s' to final sector %d\n", content_left, content, sector_i);
-    if (WriteSector(sector, buf1) == ERROR)
+    TracePrintf(0, "Write: Sector %d final content: %s\n", sector_i, start);
+    if (WriteSector(sector, start) == ERROR)
     {
         replyError(message, senderPid);
         return;

@@ -169,9 +169,9 @@ int main()
     //     TracePrintf(0, "DONE: written %d\n", written);
     // }
 
-    char buf2[] = "WE'RE DONE.";   // should appear at end of file
+    char *buf2 = "WE'RE DONE.";   // should appear at end of file
     int size = sizeof(buf2);
-    int written = Write(fd, (void *)&buf2, size);
+    int written = Write(fd, (void *)buf2, size);
     TracePrintf(0, "DONE: written %d\n", written);
 
     // char *res_buf = malloc(512 * 145 + size);

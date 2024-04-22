@@ -291,7 +291,7 @@ int Write(int fd, void *buf, int size) {
 
     free(container);
     free(extra_info);
-    TracePrintf(0, "Write: success.\n");
+    TracePrintf(0, "Write: success. Cursor at position %d.\n", fd_arr[fd]->cur_pos);
     return res;
 }
 

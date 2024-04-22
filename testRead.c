@@ -18,11 +18,11 @@ main()
     MkDir("/testing/test3");
     int fd = Open("/testing/test3");
     Read(fd, entry, sizeof(struct dir_entry));
-    TracePrintf(0, "First entry is %s\n", entry->name);
+    TracePrintf(0, "First entry is %s\n", entry->inum);
     Read(fd, entry, sizeof(struct dir_entry));
-    TracePrintf(0, "Second entry is %s\n", entry->name);
+    TracePrintf(0, "Second entry is %s\n", entry->inum);
     Read(fd, entry, sizeof(struct dir_entry));
-    TracePrintf(0, "Third entry is %s\n", entry->name);
+    TracePrintf(0, "Third entry is %s\n", entry->inum);
     Create("testing3");
     ChDir("/testing");
     return 0;
