@@ -114,8 +114,9 @@ void statHandler(struct msg *message, int senderPid);
 int checkPath(struct msg *message, int senderPid);
 void rmDirHandler(struct msg *message, int senderPid);
 void prepFree(struct inode *curr_inode);
+int fillLastBlock(struct inode *node, int node_num);
 
-int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inum);
+    int freeDirectoryEntry(struct inode *curr_inode, int curr_inode_num, int inum);
 int checkEmpty(int inum);
 int getInodeType(int inum);
 int getInodeSize(int inum);
@@ -747,21 +748,38 @@ int resetInodeSize(int inode_num) {
     return writeInodeToDisk(inode_num, node);
 }
 
-struct ext_msg
+struct write_info
 {
-    char content[100];
+    char *content;
     int size;
     int inum;
 };
 
+int nextSector(struct inode *node, unsigned int sector_i, int *content_left)
+{
+    if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int)))
+    { // check if memory limit exceeded
+        TracePrintf(0, "Write: no more free blocks. adding new memory to file...\n");
+        int new_block_num = getLastSector(node) + 1;
+        int written = fillLastBlock(node, new_block_num);
+        content_left -= written;
+        return new_block_num;
+    }
+    else
+    {
+        return getSector(node, sector_i); // get block number RW note: I'm not sure why we're reading the sector here. What if we need to write to new sector?
+    }
+}
+
 void writeHandler(struct msg *message, int senderPid)
 {
     TracePrintf(0, "Write: extracting info from message\n");
-    struct ext_msg temp;
-    CopyFrom(senderPid, &temp, message->ptr, sizeof(struct ext_msg));
+    struct write_info temp;
+    CopyFrom(senderPid, &temp, message->ptr, sizeof(struct write_info));
     int inum = temp.inum;
-    char *content = temp.content;
     int write_size = temp.size;
+    char *content = malloc(write_size);
+    CopyFrom(senderPid, content, temp.content, write_size);
     int cur_pos = message->data;
     TracePrintf(0, "inum: %d\tcontent: %s\tsize: %d\tcur pos: %d\n", inum, content, write_size, cur_pos);
 
@@ -787,20 +805,8 @@ void writeHandler(struct msg *message, int senderPid)
     TracePrintf(0, "Write: start writing...\n");
     int content_left = write_size;
     // get next sector
-    if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int)))
-    { // check if memory limit exceeded
-        TracePrintf(0, "Write: File is full. Nothing was written.\n");
-        message->data = write_size - content_left;
-        Reply(message, senderPid);
-        return;
-    }
-    int sector = getSector(node, sector_i);    // get block number RW note: I'm not sure why we're reading the sector here. What if we need to write to new sector?
-    if (ReadSector(sector, buf1) == ERROR) // set buf
-    {
-        TracePrintf(0, "Write: ERROR reading sector failed\n");
-        replyError(message, senderPid);
-        return;
-    }
+    int sector = nextSector(node, sector_i, &content_left);
+    
     while (content_left > space_left) {
         memcpy(buf1, content, space_left);
         TracePrintf(0, "Write: copying %d bytes of '%s' to new sector %d\n", space_left, content, sector_i);
@@ -816,21 +822,9 @@ void writeHandler(struct msg *message, int senderPid)
         // set up if new block/next round needed
         space_left = BLOCKSIZE;
         sector_i++;
+
         // get next sector
-        if (sector_i > NUM_DIRECT + (BLOCKSIZE / sizeof(int)))
-        { // check if memory limit exceeded
-            TracePrintf(0, "Write: File is full. Nothing was written.\n");
-            message->data = write_size - content_left;
-            Reply(message, senderPid);
-            return;
-        }
-        sector = getSector(node, sector_i);    // get block number
-        if (ReadSector(sector, buf1) == ERROR) // set buf
-        {
-            TracePrintf(0, "Write: ERROR reading sector failed\n");
-            replyError(message, senderPid);
-            return;
-        }
+        sector = nextSector(node, sector_i, &content_left);
     }
 
     memcpy(buf1, content, content_left);

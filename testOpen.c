@@ -79,28 +79,28 @@ int main()
     // TracePrintf(0, "DONE: fd %d\n", fd1);
 
     // // TEST: Open files
-    int fd1;
-    int fd2;
-    int fd3;
+    // int fd1;
+    // int fd2;
+    // int fd3;
 
-    MkDir("/testing");
-    MkDir("/testing/test");
+    // MkDir("/testing");
+    // MkDir("/testing/test");
 
-    fd1 = Create("/testing/a");
-    TracePrintf(0, "DONE: fd %d\n", fd1);
+    // fd1 = Create("/testing/a");
+    // TracePrintf(0, "DONE: fd %d\n", fd1);
 
-    fd2 = Create("/testing/test/b");
-    TracePrintf(0, "DONE: fd %d\n", fd2);
+    // fd2 = Create("/testing/test/b");
+    // TracePrintf(0, "DONE: fd %d\n", fd2);
 
-    Close(fd1);
-    Close(fd2);
+    // Close(fd1);
+    // Close(fd2);
 
-    fd1 = Open("/testing/a");
-    TracePrintf(0, "DONE: fd %d\n", fd1);
-    fd2 = Open("/testing/test/b");
-    TracePrintf(0, "DONE: fd %d\n", fd2);
-    fd3 = Open("/testing/test/basdf");
-    TracePrintf (0, "DONE: fd %d\n", fd3);
+    // fd1 = Open("/testing/a");
+    // TracePrintf(0, "DONE: fd %d\n", fd1);
+    // fd2 = Open("/testing/test/b");
+    // TracePrintf(0, "DONE: fd %d\n", fd2);
+    // fd3 = Open("/testing/test/basdf");
+    // TracePrintf (0, "DONE: fd %d\n", fd3);
 
     // // TEST: Stat one file
     // int fd;
@@ -154,6 +154,33 @@ int main()
     // int written = Write(fd, (void *)&buf, size);
     // TracePrintf(0, "DONE: written %d\n", written);
 
+    // TEST: read overloaded file memory
+    int fd = Create("a");
+    TracePrintf(0, "DONE: fd %d\n", fd);
+
+    // // text is size of a block
+    // char buf[] = "Receied shutters expenses ye he pleasant. Drift as blind above at up. No up simple county stairs do should praise as. Drawings sir gay together landlord had law smallest. Formerly welcomed attended declared met say unlocked. Jennings outlived no dwelling denoting in peculiar as he believed. Behaviour excellent middleton be as it curiosity departure ourselves. Received shutters expenses ye he pleasant. Drift as blind above at up. No up simple county stairs do should praise as. Drawings sir gay together land";
+    // int size = sizeof(buf);
+
+    // int i;
+    // int written;
+    // for (i = 0; i < 145; i++) { // 145 blocks are written
+    //     written = Write(fd, (void *)&buf, size);
+    //     TracePrintf(0, "DONE: written %d\n", written);
+    // }
+
+    char buf2[] = "WE'RE DONE.";   // should appear at end of file
+    int size = sizeof(buf2);
+    int written = Write(fd, (void *)&buf2, size);
+    TracePrintf(0, "DONE: written %d\n", written);
+
+    // char *res_buf = malloc(512 * 145 + size);
+    char *res_buf = malloc(size);
+    // Read(fd, res_buf, 512 * 145 + size);
+    Read(fd, res_buf, size);
+    TracePrintf(0, "FINAL OUTPUT: %s\n", res_buf);
+
+
     // // TEST: write nothing to file
     // int fd;
     // fd = Create("a");
@@ -174,9 +201,6 @@ int main()
     // int size = sizeof(buf);
     // int written = Write(fd, (void *)&buf, size);
     // TracePrintf(0, "DONE: written %d\n", written);
-
-    // void *buf = malloc(sizeof(char) * 10);
-    // Read(0, buf, sizeof(char) * 10);
 
     return (0);
 }

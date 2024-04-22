@@ -81,8 +81,8 @@ struct link_strs { //structure for linking
 };
 
 
-struct ext_msg {
-    char content[100];
+struct write_info {
+    char *content;
     int size;
     int inum;
 };
@@ -107,7 +107,6 @@ struct path_str *package_path(char *path) {
     path_str->length = strlen(path);
     TracePrintf(0, "packaged the path %s\n", path_str->_path);
     return path_str;
-
 }
 
 /* Return free file descriptor. -1 if storage is full.*/
@@ -274,8 +273,8 @@ int Write(int fd, void *buf, int size) {
 
     // build message
     struct msg *container = malloc(sizeof(struct msg));
-    struct ext_msg *extra_info = malloc(sizeof(struct ext_msg));
-    strcpy(extra_info->content, buf);
+    struct write_info *extra_info = malloc(sizeof(struct write_info));
+    extra_info->content = buf;
     extra_info->size = size;
     extra_info->inum = fd_arr[fd]->inum;
     container->type = WRITE;
@@ -287,11 +286,13 @@ int Write(int fd, void *buf, int size) {
     {
         return ERROR;
     }
+    int res = container->data;
+    fd_arr[fd]->cur_pos = res + fd_arr[fd]->cur_pos;
 
     free(container);
     free(extra_info);
     TracePrintf(0, "Write: success.\n");
-    return container->data;
+    return res;
 }
 
 int Seek(int fd, int offset, int whence) { //TODO: resume there
