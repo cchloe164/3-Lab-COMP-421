@@ -65,5 +65,6 @@ while the Cacheing is currently not implemented for inodes or for the blocks as 
 
 The function getNextSector() always returns 0 as the next sector, which causes errors whenever writing and reading data larger than 1 sector size.
 
+We used DIRNAMELEN instead of MAXPATHNAMELEN because it crashes.
 
 Thanks!
