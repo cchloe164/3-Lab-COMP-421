@@ -164,22 +164,19 @@ int main()
 
     // int i;
     // int written;
-    // for (i = 0; i < 145; i++) { // 145 blocks are written
+    // for (i = 0; i < 1; i++) { // 145 blocks are written
     //     written = Write(fd, (void *)&buf, size);
     //     TracePrintf(0, "DONE: written %d\n", written);
     // }
 
-    char *buf2 = "WE'RE DONE.";   // should appear at end of file
-    int size = sizeof(buf2);
-    int written = Write(fd, (void *)buf2, size);
+    char *buf2 = "WE'RE DONE."; // should appear at end of file
+    int size = sizeof("WE'RE DONE.");
+    int written = Write(fd, buf2, size);
     TracePrintf(0, "DONE: written %d\n", written);
 
-    // char *res_buf = malloc(512 * 145 + size);
-    char *res_buf = malloc(size);
-    // Read(fd, res_buf, 512 * 145 + size);
+    void *res_buf = malloc(size);
     Read(fd, res_buf, size);
-    TracePrintf(0, "FINAL OUTPUT: %s\n", res_buf);
-
+    TracePrintf(0, "FINAL OUTPUT: %s\n", (char *)res_buf);
 
     // // TEST: write nothing to file
     // int fd;

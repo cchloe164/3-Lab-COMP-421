@@ -302,7 +302,6 @@ int main(int argc, char** argv) {
 }
 
 void readHandler(struct msg *message, int senderPid) {
-    TracePrintf(0, "Read: Reading in bytes...\n");
     int curr_inode_num = message->data;
     struct read_info *info = malloc(sizeof(struct read_info));
     
@@ -312,10 +311,11 @@ void readHandler(struct msg *message, int senderPid) {
         return;
     }
     int bytes_to_read = info->size; //size to read
+    TracePrintf(0, "Read: Reading in %d bytes...\n", bytes_to_read);
     int inum = info->inum; //inode num
-    int read_from = info->cursor; //where we read from
+    int file_pos = info->cursor; //where we read from
     void *buf = info->buf; // the buffer to write to
-    if (buf == NULL || read_from < 0 || bytes_to_read < 0 || inum <= 0 || curr_inode_num < 1) {
+    if (buf == NULL || file_pos < 0 || bytes_to_read < 0 || inum <= 0 || curr_inode_num < 1) {
         //error 
         TracePrintf(0, "invalid buffer, readfrom, size, or inode num field\n");
         replyError(message, senderPid);
@@ -329,71 +329,66 @@ void readHandler(struct msg *message, int senderPid) {
         return;
     }
     int node_size = node->size;
-    //check if the size goes past the current size. if so, update that value
-    // if (read_from >= node_size) { //read nulls if the cursor is past size
-    //     void *nul_buf = malloc(bytes_to_read);
-    //     memset(nul_buf, '\0', bytes_to_read);
-    //     if (CopyTo(senderPid, buf, nul_buf, bytes_to_write) == ERROR) {
-    //         TracePrintf(0, "Error writing null to the buffer from pid %i\n", senderPid);
-    //         replyError(message, senderPid);
-    //     }
-    // }
-    if (read_from > node_size) {
+    if (file_pos > node_size) {
         TracePrintf(0, "cannot read past EOF\n");
         replyError(message, senderPid);
         return;
     }
-    if (bytes_to_read + read_from > node_size) {
-        bytes_to_read = node_size - read_from;
+    if (bytes_to_read + file_pos > node_size) {
+        TracePrintf(0, "Read: Resetting bytes_to_read\n");
+        bytes_to_read = node_size - file_pos;
     }
     //iterate through and read from the blocks, update the pointer
     
     void *current_block = malloc(BLOCKSIZE); //the current block we are reading from
-    int cur_block_inode_idx = read_from / BLOCKSIZE; //which block are we in in the inode
-    int pos_in_block = read_from % BLOCKSIZE;
+    int block_pos = file_pos % BLOCKSIZE;
     int total_bytes_remaining = bytes_to_read; //we decrement from this
-    int last_block = (read_from + bytes_to_read) / BLOCKSIZE;
+    int last_block_idx = ((file_pos - bytes_to_read) / BLOCKSIZE) + 1;
 
-    int bytes_to_copy = BLOCKSIZE - pos_in_block;
-
-    TracePrintf(0, "block inode idx=%d\tpos in block=%d\tlast block=%d\tbytes to copy=%d\n", cur_block_inode_idx, pos_in_block, last_block, bytes_to_copy);
-
-    void *buffer_of_contents = malloc(bytes_to_read); //buffer to collect the contents
-    void *buf_ptr = buffer_of_contents;
-    for (cur_block_inode_idx = read_from / BLOCKSIZE; cur_block_inode_idx <= last_block; cur_block_inode_idx++) {
+    void *buf_ptr = malloc(bytes_to_read); //buffer to collect the contents
+    void *buffer_content = buf_ptr;
+    int offset;
+    int block_idx;
+    for (block_idx = (file_pos / BLOCKSIZE) + 1; block_idx >= last_block_idx; block_idx--)
+    {
         //iterate through each block
-        int cur_block_idx = getSector(node, cur_block_inode_idx); //the actual block
-        TracePrintf(0, "block index: %d\n", cur_block_idx);
-        if (cur_block_idx == 0) {
-            //the block doesn't exist yet. we are in a gap, so need to write '\0'
-            memset(current_block, '\0', BLOCKSIZE);
-        } else if (readBlock(cur_block_idx, current_block) == ERROR) { //read the sector
+        int block_num = getSector(node, block_idx); // the actual block
+        TracePrintf(0, "Read: block index=%d\tblock num=%d\n", block_idx, block_num);
+        if (readBlock(block_num, current_block) == ERROR)
+        { // read the sector
             TracePrintf(0, "error reading the block in read\n");
             replyError(message, senderPid);
             return;
         }
+        TracePrintf(0, "WHAT'S IN THE BLOCK: %s\n", current_block);
         //copy bytes over
         //handle case where we are on the last block and there is only part of the rest of the block
 
-        if (total_bytes_remaining < bytes_to_copy) {
+        int bytes_to_copy;
+        if (total_bytes_remaining < BLOCKSIZE) {
             bytes_to_copy = total_bytes_remaining; //set it to the bytes remaining
+        } else {
+            bytes_to_copy = BLOCKSIZE;
         }
         //now copy everything over to the buffer
-        memcpy(buf_ptr, (char *)current_block + pos_in_block, bytes_to_copy);
-        TracePrintf(0, "WHAT'S IN THE BUFFER: %s\n", current_block);
+        offset = block_pos - bytes_to_copy;
+        current_block += offset;
+        TracePrintf(0, "Read: copying %d bytes from '%s'\n", bytes_to_copy, current_block);
+        memcpy(buffer_content, current_block, bytes_to_copy);
 
         total_bytes_remaining -= bytes_to_copy;
-        pos_in_block = 0;
-        buf_ptr += bytes_to_copy;
+        block_pos = BLOCKSIZE;
+        buffer_content += bytes_to_copy;
         bytes_to_copy = BLOCKSIZE;
     }
-    if (CopyTo(senderPid, buf, buffer_of_contents, bytes_to_read) == ERROR) {
+    TracePrintf(0, "buffer_of_contents: %s\n", buf_ptr);
+    if (CopyTo(senderPid, buf, buf_ptr, bytes_to_read) == ERROR) {
         TracePrintf(0, "error copying the buffer to the other buffer in read\n");
         replyError(message, senderPid);
         return;
     } //copy to the buffer from our buffer
 
-    replyWithInodeNum(message, senderPid, read_from + bytes_to_read); //reply with new location
+    replyWithInodeNum(message, senderPid, file_pos + bytes_to_read); //reply with new location
 
 }
 
@@ -800,23 +795,28 @@ void writeHandler(struct msg *message, int senderPid)
         return;
     }
     
-    TracePrintf(0, "Write: find sector\n");
-    unsigned int sector_i = cur_pos / BLOCKSIZE + 1;    // get index of current block
+    unsigned int sector_i = (cur_pos / BLOCKSIZE) + 1;    // get index of current block
     void *buf1 = malloc(SECTORSIZE);
     void *start = buf1;
+    TracePrintf(0, "Write: found sector index %d\n", sector_i);
 
-    TracePrintf(0, "Write: find position in sector\n");
     int sector_pos = cur_pos % BLOCKSIZE;    // get current position within block
     int space_left = BLOCKSIZE - sector_pos;
+    TracePrintf(0, "Write: found position in sector %d\n", sector_pos);
 
     TracePrintf(0, "Write: start writing...\n");
     int content_left = write_size;
     // get next sector
     int sector = nextSector(node, sector_i, &content_left);
+    // if (sector == 0) {
+    //     TracePrintf(0, "Write: next sector is not allocated.\n");
+    //     replyError(message, senderPid);
+    //     return;
+    // }
     
     while (content_left > space_left) {
-        TracePrintf(0, "Write: Sector %d current content: %s\n", sector_i, start);
-        TracePrintf(0, "Write: copying %d bytes of '%s' to new sector %d\n", space_left, content, sector_i);
+        TracePrintf(0, "Write: Sector %d current content: %s\n", sector, start);
+        TracePrintf(0, "Write: copying %d bytes of '%s' to new sector %d\n", space_left, content, sector);
         memcpy(buf1, content, space_left);
 
         if (WriteSector(sector, start) == ERROR)
@@ -834,11 +834,16 @@ void writeHandler(struct msg *message, int senderPid)
 
         // get next sector
         sector = nextSector(node, sector_i, &content_left);
+        // if (sector == 0) {
+        //     TracePrintf(0, "Write: next sector is not allocated.\n");
+        //     replyError(message, senderPid);
+        //     return;
+        // }
     }
 
     memcpy(buf1, content, content_left);
-    TracePrintf(0, "Write: copying %d bytes of '%s' to final sector %d\n", content_left, content, sector_i);
-    TracePrintf(0, "Write: Sector %d final content: %s\n", sector_i, start);
+    TracePrintf(0, "Write: copying %d bytes of '%s' to final sector %d\n", content_left, content, sector);
+    TracePrintf(0, "Write: Sector %d final content: %s\n", sector, start);
     if (WriteSector(sector, start) == ERROR)
     {
         replyError(message, senderPid);

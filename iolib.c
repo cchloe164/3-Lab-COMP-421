@@ -235,7 +235,6 @@ int Read(int fd, void *buf, int size) {
     // build message
     struct msg *container = malloc(sizeof(struct msg));
     struct read_info *read_info = malloc(sizeof(struct read_info));
-    // strcpy(extra_info->content, buf);
     read_info->size = size;
     read_info->inum = fd_arr[fd]->inum;
     read_info->buf = buf;

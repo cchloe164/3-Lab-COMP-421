@@ -13,11 +13,57 @@ number of a file currently open in this process, this request returns ERROR; oth
 
 *Read appropriately reads data from an open file, beginning at the current position in the file as represented by the given file descriptor fd. The argument fd specifies the file descriptor number of the file to be read, buf specifies the address of the buffer in the requesting process into which to perform the read, and size is the number of bytes to be read from the file.
 
+*Write appropriately writes data to an open file, beginning at the current position in the file as represented by
+the given file descriptor fd. The argument fd specifies the file descriptor number of the file to be
+written, buf specifies the address of the buffer in the requesting process from which to perform the
+write, and size is the number of bytes to be written to the file. This request returns the number of
+bytes written, which may be less than the number of bytes requested to be written (a return value of
+0 indicates that nothing was written). Upon successful completion, the current position in the file as
+represented by the given file descriptor fd should be advanced by the number of bytes written. Any
+error should return ERROR. It is an error to attempt to Write() to a file descriptor that is open on a
+directory. Unless this Write operation returns ERROR, the current position for subsequent Read or
+Write operations on this file descriptor advances by the number of bytes written (the value returned
+by the Write request).
+
+*Seek appropriately changes the current file position of the open file specified by file descriptor number fd .
+The argument offset specifies a byte offset in the file relative to the position indicated by whence .
+The value of offset may be positive, negative, or zero.
+
+*Link appropriately creates a (hard) link from the new file name newname to the existing file oldname .
+The files oldname and newname need not be in the same directory. The file oldname must not
+be a directory. It is an error if the file newname already exists. On success, this request returns 0; on
+any error, the value ERROR is returned.
+
+*MkDir appropriately creates a new directory named pathname , including the “.” and “..” entries within
+the new directory. It is an error if the file pathname exists. On success, this request returns 0; on
+any error, the value ERROR is returned.
+
+*RmDir appropriately deletes the existing directory named pathname . The directory must contain no di-
+rectory entries other than the “.” and “..” entries and possibly some free entries. On success, this
+request returns 0; on any error, the value ERROR is returned. Note that it is an error to attempt to
+remove the root directory; it is also an error to attempt to remove individually the “.” or “..” entry
+from a directory.
+
+*ChDir appropriately changes the current directory within the requesting process to be the directory indicated
+by pathname . The current directory of a process should be remembered by the inode number of
+that directory, within the file system library in that process. That current directory inode number
+should then be passed to the file server on each request that takes any file name arguments. The file
+pathname on this request must be a directory. On success, this request returns 0; on any error, the
+value ERROR is returned.
+
+*Stat appropriately returns information about the file indicated by pathname in the information structure
+at address statbuf . 
+
+*Shutdown appropriately performs an orderly shutdown of the file server process. All dirty cached inodes and
+disk blocks should be written back to the disk (as in a Sync request), and the file server should then
+call Exit to complete its shutdown. As part of a Shutdown request, the server should print an
+informative message indicating that it is shutting down. This request always returns the value 0.
 
 Known bugs:
 
-while the 
-Cacheing is currently not implemented for inodes or for the blocks as of the writing of this README. The reuse count, while incremented every time an inode is reused, we do not check if the inode’s current reuse count for some request does not match the reuse count that the file had when it was opened. 
+while the Cacheing is currently not implemented for inodes or for the blocks as of the writing of this README. The reuse count, while incremented every time an inode is reused, we do not check if the inode’s current reuse count for some request does not match the reuse count that the file had when it was opened. 
+
+The function getNextSector() always returns 0 as the next sector, which causes errors whenever writing and reading data larger than 1 sector size.
 
 
 Thanks!
